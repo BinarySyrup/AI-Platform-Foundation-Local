@@ -1,8 +1,8 @@
 # Platform API
 
 This directory contains the FastAPI application, its Ollama adapter, and the
-API container image. Terraform deployment resources remain in
-`infra/terraform/` and have not been implemented yet.
+API container image. Terraform in `infra/terraform/` builds the image and runs
+the API beside Ollama on a private Docker network.
 
 ## Local Development
 
@@ -52,7 +52,8 @@ Integration tests require a running Ollama service with the reference model
 installed. Set `RUN_OLLAMA_INTEGRATION=1` and configure `OLLAMA_BASE_URL` before
 running `python -m pytest -m integration`.
 
-Build the API image from the repository root:
+For a standalone development build, create the API image from the repository
+root. Terraform builds it automatically during apply:
 
 ```powershell
 docker build -f platform/Dockerfile -t local-ai-platform-api:0.1.0 .

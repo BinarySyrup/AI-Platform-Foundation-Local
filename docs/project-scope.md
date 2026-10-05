@@ -70,12 +70,12 @@ Security-conscious architecture does not establish regulatory compliance. The MV
 
 | Area | Technologies | Purpose |
 |---|---|---|
-| Infrastructure | Terraform, Terraform Docker provider | Define and provision local infrastructure |
+| Infrastructure | Terraform 1.16.5, Docker provider 4.6.0 | Define and provision local infrastructure |
 | Container runtime | Docker Engine | Run platform services |
 | Networking and storage | Docker networks and volumes | Provide internal connectivity and persistent model storage |
 | Platform API | Python 3.14, FastAPI, Pydantic, Uvicorn | Expose and validate the platform API |
 | Runtime integration | HTTPX | Communicate with Ollama over HTTP |
-| Model runtime | Ollama | Manage model artifacts and execute local inference |
+| Model runtime | Ollama `ollama/ollama:0.35.1` | Manage model artifacts and execute local inference |
 | Testing | Pytest, HTTPX test client, Docker-based integration tests | Validate application behavior and runtime integration |
 | Code quality | Ruff | Lint and format Python code |
 | Optional type checking | MyPy or Pyright | Provide additional static validation |
@@ -318,7 +318,11 @@ Model data must survive:
 
 Model artifacts must be deleted only through a documented, explicit cleanup process.
 
-The Terraform storage design must support this lifecycle. A volume managed in the same Terraform state as the services is ordinarily subject to `terraform destroy`; preservation must therefore be implemented deliberately rather than assumed.
+The Ollama container mounts a named Docker volume that is not managed as a
+Terraform resource. Routine `terraform destroy` removes the container while
+Docker preserves the named volume on the host; a later apply reuses it. Permanent
+deletion is a separate, explicit `docker volume rm` operation documented in
+`infra/terraform/README.md`.
 
 Conversation history, user records, and application state persistence are outside the MVP scope.
 
@@ -396,7 +400,7 @@ Terraform remains the primary provisioning mechanism. If Docker Compose is inclu
 The setup documentation must identify:
 
 - Supported local environment.
-- Required Docker, Terraform, and Python versions.
+- Docker Engine, Terraform 1.16.5, Docker provider 4.6.0, and Python 3.14.
 - Application image build steps.
 - The reference validation profile: CPU-only x86-64, 8 GiB RAM, and at least
   10 GiB free disk; record actual test results before treating it as verified.
@@ -426,6 +430,9 @@ download orchestration does not need to be implemented as Terraform application
 logic. Record the resolved model digest during setup; local overrides may use
 another installed model.
 
+Record the resolved digest shown by `docker exec ollama ollama list` when
+capturing setup results.
+
 ### 12.4 Verify the Platform
 
 ```bash
@@ -437,7 +444,9 @@ Then submit a chat request to `POST /api/v1/chat` using an installed model.
 
 ### 12.5 Teardown and Cleanup
 
-The documented routine teardown must remove service resources while preserving model artifacts.
+The Ollama container uses a named Docker volume outside Terraform resource
+management, so routine `terraform destroy` removes the service resources while
+preserving model artifacts on the Docker host.
 
 Where services are managed in the primary Terraform configuration, the teardown command is:
 
@@ -445,9 +454,9 @@ Where services are managed in the primary Terraform configuration, the teardown 
 terraform -chdir=infra/terraform destroy
 ```
 
-Before this workflow is considered complete, the storage implementation must ensure that routine destruction does not delete model data.
-
-A separate, explicit cleanup procedure must describe how to permanently remove retained model artifacts.
+A separate, explicit cleanup procedure is documented in
+`infra/terraform/README.md`; do not remove retained model artifacts as part of
+routine teardown.
 
 ## 13. Testing and Quality
 

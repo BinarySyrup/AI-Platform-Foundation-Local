@@ -22,10 +22,10 @@ for the complete MVP scope and acceptance criteria.
 
 ## Project Status
 
-The FastAPI application, Ollama adapter, API container definition, and unit
-tests are implemented. Terraform resources and the full Docker platform
-deployment are still pending, so the infrastructure workflow below is not
-runnable yet.
+The FastAPI application, Ollama adapter, Terraform Docker resources, and unit
+tests are implemented. Terraform builds and runs the API and Ollama containers,
+publishes the API on loopback, and retains Ollama model data across routine
+teardown. Review the Terraform plan before applying it.
 
 The initial CPU-only validation target is an x86-64 host with 8 GiB of RAM and
 at least 10 GiB of free disk. This is a target profile, not a verified minimum;
@@ -75,28 +75,29 @@ Build the API container image from the repository root:
 docker build -f platform/Dockerfile -t local-ai-platform-api:0.1.0 .
 ```
 
-## Planned Infrastructure Workflow
+## Provision the Local Platform
 
-Terraform deployment resources have not been implemented. Once they are added,
-the intended commands from the repository root are:
+With Terraform 1.16.5 and Docker Engine available, run these commands from the
+repository root. Review the plan before applying it:
 
-```bash
+```powershell
 terraform -chdir=infra/terraform init
+terraform -chdir=infra/terraform fmt -check
 terraform -chdir=infra/terraform validate
 terraform -chdir=infra/terraform plan
 terraform -chdir=infra/terraform apply
 ```
 
-Review plans before applying. Publish the FastAPI host port on `127.0.0.1` only
-and keep Ollama on the internal Docker network. The reference model is prepared
-inside the Ollama container with:
+Terraform builds the API image and publishes it on `127.0.0.1:8000`. Ollama is
+available only on the internal Docker network. After apply, prepare the
+reference model explicitly:
 
-```bash
+```powershell
 docker exec ollama ollama pull qwen2.5:1.5b
 ```
 
-Routine `terraform destroy` must preserve model artifacts; permanent deletion
-requires a separate, documented cleanup procedure.
+Routine `terraform destroy` preserves the Ollama model volume. The explicit
+volume deletion procedure is documented in [`infra/terraform/README.md`](infra/terraform/README.md).
 
 ## Repository Layout
 

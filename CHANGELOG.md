@@ -12,6 +12,8 @@ Notable project changes are documented here.
 - Added a FastAPI application with an Ollama adapter, validated API schemas,
   normalized errors, request IDs, and unit/integration tests.
 - Added a root HTML endpoint that reports the current API version.
+- Added Terraform-managed Docker networking, API and Ollama containers, and a
+  retained Ollama model volume.
 
 ### Changed
 
