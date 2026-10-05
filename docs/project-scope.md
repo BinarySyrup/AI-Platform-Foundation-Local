@@ -70,15 +70,18 @@ Security-conscious architecture does not establish regulatory compliance. The MV
 
 | Area | Technologies | Purpose |
 |---|---|---|
-| Infrastructure | Terraform, Terraform Docker provider | Define and provision local infrastructure |
+| Infrastructure | Terraform 1.16.5, Docker provider 4.6.0 | Define and provision local infrastructure |
 | Container runtime | Docker Engine | Run platform services |
 | Networking and storage | Docker networks and volumes | Provide internal connectivity and persistent model storage |
-| Platform API | Python, FastAPI, Pydantic, Uvicorn | Expose and validate the platform API |
+| Platform API | Python 3.14, FastAPI, Pydantic, Uvicorn | Expose and validate the platform API |
 | Runtime integration | HTTPX | Communicate with Ollama over HTTP |
-| Model runtime | Ollama | Manage model artifacts and execute local inference |
+| Model runtime | Ollama `ollama/ollama:0.35.1` | Manage model artifacts and execute local inference |
 | Testing | Pytest, HTTPX test client, Docker-based integration tests | Validate application behavior and runtime integration |
 | Code quality | Ruff | Lint and format Python code |
 | Optional type checking | MyPy or Pyright | Provide additional static validation |
+
+Runtime and development dependency versions are pinned in the root
+`pyproject.toml`; the API supports Python 3.14 only.
 
 Ollama is the initial runtime because it provides a straightforward local execution environment and HTTP API. Runtime-specific integration must remain isolated so that alternative runtimes can be evaluated later.
 
@@ -181,7 +184,20 @@ Ollama remains an implementation detail behind the platform API.
 
 ## 7. Initial API Scope
 
-### 7.1 Health
+### 7.1 API Landing Page
+
+```http
+GET /
+```
+
+**Purpose:** Return a simple HTML landing page showing the current API version.
+The displayed version comes from FastAPI's application version metadata.
+
+```html
+<html><body><h1>AI Platform Foundation - API</h1><div>API Version:0.1.0</div></body></html>
+```
+
+### 7.2 Health
 
 ```http
 GET /health
@@ -189,9 +205,13 @@ GET /health
 
 **Purpose:** Confirm that the FastAPI application is running.
 
-The response may also report Ollama connectivity. If dependency status is included, the contract must clearly distinguish application liveness from runtime availability.
+This is a liveness check and does not call Ollama. A successful response is:
 
-### 7.2 List Models
+```json
+{"status":"ok"}
+```
+
+### 7.3 List Models
 
 ```http
 GET /api/v1/models
@@ -199,9 +219,13 @@ GET /api/v1/models
 
 **Purpose:** Return models available in the local runtime.
 
-The platform response must avoid exposing unnecessary runtime-specific details.
+The response contains model names only, avoiding runtime-specific metadata:
 
-### 7.3 Chat Completion
+```json
+{"models":[{"name":"qwen2.5:1.5b"}]}
+```
+
+### 7.4 Chat Completion
 
 ```http
 POST /api/v1/chat
@@ -226,7 +250,30 @@ Conceptual request:
 }
 ```
 
-The MVP supports non-streaming responses. Exact request schemas, response schemas, supported options, and error mappings will be defined during implementation and documented through FastAPI's generated OpenAPI specification.
+The MVP supports non-streaming responses. The implemented request and response
+schemas are published through FastAPI's generated OpenAPI specification.
+
+The implemented request contract accepts 1–100 messages with roles `system`,
+`user`, or `assistant`; message content must be non-blank and no longer than
+32,000 characters. `model` is optional and defaults to `DEFAULT_MODEL`. The
+only supported option is `temperature`, between 0 and 2.
+
+Successful responses use the normalized form:
+
+```json
+{
+  "model": "qwen2.5:1.5b",
+  "message": {"role":"assistant","content":"..."}
+}
+```
+
+Errors use an `error` object containing a stable `code` and safe `message`, plus
+a `request_id`. Validation responses may include field-level details. The API
+maps invalid requests to 422, unavailable models to 404, runtime timeouts to
+504, runtime connectivity failures to 503, invalid upstream responses to 502,
+and unexpected failures to 500. Every response includes an `X-Request-ID`
+header. Request logs include method, path, status, duration, and request ID, but
+never request or response content.
 
 Expected error scenarios include:
 
@@ -244,10 +291,13 @@ Application configuration will be supplied through environment variables and doc
 |---|---|
 | `OLLAMA_BASE_URL` | Internal HTTP address of the Ollama service |
 | `DEFAULT_MODEL` | Default model identifier; `qwen2.5:1.5b` for the MVP |
-| `API_HOST` | Application bind address inside the container (typically `0.0.0.0`; host publishing remains loopback-only) |
+| `API_HOST` | Application bind address; local process defaults to `127.0.0.1`, while the container sets `0.0.0.0` and relies on loopback-only host port publishing |
 | `API_PORT` | Application listening port |
 | `LOG_LEVEL` | Application logging verbosity |
 | `REQUEST_TIMEOUT_SECONDS` | Timeout for runtime requests |
+
+The application reads process environment variables directly. `.env.example`
+is documentation only and is not loaded automatically.
 
 Infrastructure configuration will use Terraform variables, with example values documented in `infra/terraform/terraform.tfvars.example`.
 
@@ -268,7 +318,11 @@ Model data must survive:
 
 Model artifacts must be deleted only through a documented, explicit cleanup process.
 
-The Terraform storage design must support this lifecycle. A volume managed in the same Terraform state as the services is ordinarily subject to `terraform destroy`; preservation must therefore be implemented deliberately rather than assumed.
+The Ollama container mounts a named Docker volume that is not managed as a
+Terraform resource. Routine `terraform destroy` removes the container while
+Docker preserves the named volume on the host; a later apply reuses it. Permanent
+deletion is a separate, explicit `docker volume rm` operation documented in
+`infra/terraform/README.md`.
 
 Conversation history, user records, and application state persistence are outside the MVP scope.
 
@@ -346,7 +400,7 @@ Terraform remains the primary provisioning mechanism. If Docker Compose is inclu
 The setup documentation must identify:
 
 - Supported local environment.
-- Required Docker, Terraform, and Python versions.
+- Docker Engine, Terraform 1.16.5, Docker provider 4.6.0, and Python 3.14.
 - Application image build steps.
 - The reference validation profile: CPU-only x86-64, 8 GiB RAM, and at least
   10 GiB free disk; record actual test results before treating it as verified.
@@ -376,6 +430,9 @@ download orchestration does not need to be implemented as Terraform application
 logic. Record the resolved model digest during setup; local overrides may use
 another installed model.
 
+Record the resolved digest shown by `docker exec ollama ollama list` when
+capturing setup results.
+
 ### 12.4 Verify the Platform
 
 ```bash
@@ -387,7 +444,9 @@ Then submit a chat request to `POST /api/v1/chat` using an installed model.
 
 ### 12.5 Teardown and Cleanup
 
-The documented routine teardown must remove service resources while preserving model artifacts.
+The Ollama container uses a named Docker volume outside Terraform resource
+management, so routine `terraform destroy` removes the service resources while
+preserving model artifacts on the Docker host.
 
 Where services are managed in the primary Terraform configuration, the teardown command is:
 
@@ -395,9 +454,9 @@ Where services are managed in the primary Terraform configuration, the teardown 
 terraform -chdir=infra/terraform destroy
 ```
 
-Before this workflow is considered complete, the storage implementation must ensure that routine destruction does not delete model data.
-
-A separate, explicit cleanup procedure must describe how to permanently remove retained model artifacts.
+A separate, explicit cleanup procedure is documented in
+`infra/terraform/README.md`; do not remove retained model artifacts as part of
+routine teardown.
 
 ## 13. Testing and Quality
 

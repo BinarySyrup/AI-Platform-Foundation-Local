@@ -21,18 +21,19 @@ configuration, and safe defaults over production-scale complexity.
 The MVP does not include a UI, authentication, cloud deployment, or
 orchestration beyond Docker.
 
-## Decisions to finalize before implementation
+## Implementation Decisions
 
-1. Specify supported host platforms and pin Terraform, provider, Docker image,
-   Python, and Ollama versions.
-2. Implement model-volume retention so routine Terraform teardown preserves
-   model data, with a separate explicit cleanup operation.
-3. Document configuration loading and precedence, including `.env.example`.
-4. Define liveness/readiness responses and startup behavior when Ollama is
-   unavailable.
-5. Validate the reference hardware profile and record measured resource use.
-6. Add smoke and integration tests using the pinned reference model, without
-   sending prompts or model data externally.
+Terraform 1.16.5 and Docker provider 4.6.0 manage the local services. The API
+image uses Python 3.14.8; Ollama uses the pinned `ollama/ollama:0.35.1` image.
+The API port is published on loopback only, and Ollama remains on the internal
+Docker bridge network. Ollama mounts a named Docker volume whose lifecycle is
+outside Terraform resource management, so service teardown preserves model
+data; permanent deletion is a separate operator action documented in
+`infra/terraform/README.md`.
+
+Remaining validation includes recording measured resource use for the target
+hardware profile and running end-to-end tests against the pinned model without
+sending prompts or model data externally.
 
 ## Operational principles
 
