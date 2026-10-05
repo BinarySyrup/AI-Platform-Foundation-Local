@@ -42,3 +42,54 @@ terraform.rc
 # Optional: ignore plan files saved before destroying Terraform configuration
 # Uncomment the line below if you want to ignore planout files.
 # planout
+
+# Ignore generated Terraform plans, but keep .terraform.lock.hcl tracked.
+*.tfplan
+tfplan
+*.plan
+
+# Local environment files and credentials
+.env
+.env.*
+!.env.example
+.netrc
+*.key
+*.p12
+*.pfx
+
+# Python virtual environments, bytecode, and tool output
+/.venv/
+/venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+/.pytest_cache/
+/.ruff_cache/
+/.mypy_cache/
+/.pyright/
+/.coverage
+/.coverage.*
+/htmlcov/
+/build/
+/dist/
+
+# Local model and application data
+/models/
+/data/
+/local-data/
+
+# Local Docker Compose overrides
+docker-compose.override.yml
+docker-compose.override.yaml
+compose.override.yml
+compose.override.yaml
+
+# Logs and temporary output
+*.log
+*.tmp
+
+# Operating system and IDE files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
