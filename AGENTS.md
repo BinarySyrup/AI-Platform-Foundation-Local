@@ -5,7 +5,7 @@
 - Read `docs/project-scope.md` before implementing features. It defines the MVP: Terraform with the Docker provider, Docker, a Python/FastAPI platform API, and Ollama.
 - Keep the API as the boundary between clients and the model runtime; isolate Ollama-specific behavior behind a client or adapter.
 - Keep work within the MVP. Do not add cloud deployment, Kubernetes, authentication, a frontend, RAG, vector storage, document ingestion, agents, or model training unless the scope is deliberately revised.
-- The repository currently uses `infra/terraform/`, `platform/`, and `scripts/`. Preserve these paths unless a planned layout change updates the documentation too. The example tree in `docs/project-scope.md` currently differs; do not move files implicitly.
+- Preserve the repository layout documented in `docs/project-scope.md`: `infra/terraform/`, `platform/`, `scripts/`, and `docs/`. Do not move files implicitly.
 - Keep `README.md` and `docs/architecture.md` consistent with the selected MVP stack when changing project direction or setup.
 
 ## Safety and data

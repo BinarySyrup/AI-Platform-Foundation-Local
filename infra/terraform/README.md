@@ -1,9 +1,12 @@
 # Terraform
 
-Terraform configuration for infrastructure provisioning belongs here. Keep
-environment-specific values and state out of version control; the repository
-root `.gitignore` excludes Terraform state and variable files.
+Terraform configuration using the Docker provider belongs here. It provisions
+the local Docker network, FastAPI and Ollama containers, port mappings, and
+persistent model storage. Keep environment-specific values and state out of
+version control; the repository root `.gitignore` excludes Terraform state and
+variable files.
 
-No provider or infrastructure target has been selected yet. Record the target,
-required Terraform version, state strategy, and plan/apply workflow before adding
-resources. Review every plan before applying it.
+Pin the required Terraform and provider versions in configuration before adding
+resources. Document the state strategy and plan/apply workflow. Ensure routine
+service teardown preserves the model volume, and review every plan before
+applying it.

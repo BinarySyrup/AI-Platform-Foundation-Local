@@ -1,327 +1,526 @@
-Local AI Platform Foundation — Project Scope
-1. Overview
-   The Local AI Platform Foundation is a portfolio project demonstrating how to provision and operate a small, local AI platform using open-source technologies.
+# Local AI Platform Foundation — Project Scope
 
-The initial MVP will use Terraform to provision Docker resources locally, with a Python/FastAPI platform API providing access to locally hosted large language models through Ollama.
+## 1. Overview
 
-The project is intentionally starting small. The goal is to establish a clean, reproducible platform foundation before adding capabilities such as retrieval-augmented generation, vector storage, authentication, observability, and Kubernetes.
+The Local AI Platform Foundation is a portfolio project demonstrating the provisioning and operation of a small, local AI platform using open-source technologies.
 
-This project reflects my experience designing cloud platforms, secure APIs, distributed services, Docker-based environments, Terraform workflows, and AI-enabled engineering solutions. 1
+The minimum viable product (MVP) uses Terraform to provision local Docker resources and a Python/FastAPI service to provide access to locally hosted language models through Ollama.
 
-2. Goals
-   The MVP goals are to:
+The project prioritizes a clean, reproducible platform foundation over feature breadth. Capabilities such as retrieval-augmented generation (RAG), authentication, vector storage, advanced observability, and Kubernetes deployment are reserved for future phases.
 
-Provision a local AI runtime using Terraform.
-Run platform components in Docker containers.
-Host open-source LLMs locally using Ollama.
-Provide a Python-based API using FastAPI.
-Establish a clean boundary between the platform API and the model runtime.
-Provide repeatable local setup and teardown.
-Support basic API and integration testing.
-Create a foundation that can evolve toward a broader AI platform.
-Document architecture, decisions, operation, and future capabilities.
-3. Non-Goals
-   The initial MVP will not include:
+The project demonstrates practical skills in infrastructure as code, container platforms, API design, AI runtime integration, automated testing, and architectural documentation.
 
-Cloud deployment
-Kubernetes
-Web frontend
-User authentication
-Multi-user access control
-Retrieval-augmented generation
-Vector databases
-Document ingestion
-Agent workflows
-Model fine-tuning
-Model training
-Production-grade high availability
-Healthcare or protected health information
-The platform may eventually support regulated workloads, but this MVP must use synthetic or non-sensitive data only. It should not be represented as HIPAA-compliant merely because the architecture includes security-minded design principles.
+## 2. Objectives
 
-4. Technology Stack
-   Infrastructure
-   Terraform
-   Terraform Docker provider
-   Docker Engine
-   Docker volumes
-   Docker network
-   Terraform will define and manage the local infrastructure resources. Terraform, Docker, and Kubernetes are technologies included in my platform engineering and DevOps background. 2
+The MVP will:
 
-Platform API
-Python
-FastAPI
-Pydantic
-Uvicorn
-HTTPX
-The FastAPI service will expose a stable API contract and communicate with Ollama over HTTP.
+- Provision a local AI runtime and supporting infrastructure using Terraform.
+- Run platform components in Docker containers.
+- Host locally executable, open-source language models through Ollama.
+- Expose a versioned platform API using Python and FastAPI.
+- Maintain a clear boundary between the platform API and the model runtime.
+- Provide repeatable setup, operation, and teardown workflows.
+- Persist downloaded model artifacts independently of container lifecycle.
+- Include unit tests and real integration tests where practical.
+- Document architecture, implementation decisions, configuration, and operation.
+- Establish an extensible foundation for future AI platform capabilities.
 
-LLM Runtime
-Ollama
-Locally hosted open-source models
-Ollama is the initial model runtime because it provides a simple local execution environment and HTTP API. The platform API should remain sufficiently abstracted so another model runtime can be evaluated later.
+## 3. Scope Boundaries
 
-Testing and Quality
-Pytest
-HTTPX test client
-Ruff
-Optional MyPy or Pyright
-Docker-based integration testing
-The project should favor real integration tests where practical rather than relying exclusively on mocks.
+### 3.1 In Scope
 
-5. High-Level Architecture
-   Text
+The MVP includes:
 
-Copy
-┌─────────────────────┐
-│  API Client          │
-│  curl / Python test  │
-└──────────┬──────────┘
-│
-▼
-┌─────────────────────┐
-│  FastAPI Platform   │
-│  API                 │
-└──────────┬──────────┘
-│ HTTP
-▼
-┌─────────────────────┐
-│  Ollama              │
-│  Local LLM Runtime   │
-└──────────┬──────────┘
-│
-▼
-┌─────────────────────┐
-│  Local Open-Source  │
-│  Language Model      │
-└─────────────────────┘
-Terraform provisions the Docker network, containers, ports, volumes, and configuration required to run the platform.
+- Terraform-managed Docker infrastructure.
+- A Docker network for internal service communication.
+- Containerized FastAPI and Ollama services.
+- Persistent storage for Ollama model artifacts.
+- Health, model-listing, and non-streaming chat endpoints.
+- Request validation and normalized API responses.
+- Runtime error handling and configurable request timeouts.
+- Basic request logging and correlation identifiers.
+- Environment-based application configuration.
+- Automated unit and integration testing.
+- Local setup, model preparation, operation, and cleanup documentation.
 
-6. Component Responsibilities
-   Terraform
-   Terraform is responsible for:
+### 3.2 Out of Scope
 
-Creating the Docker network.
-Creating the Ollama container.
-Creating the FastAPI container.
-Creating persistent storage for model data.
-Configuring service connectivity.
-Exposing required ports.
-Defining container restart behavior.
-Managing environment-specific configuration.
-Terraform will not contain application logic or prompt-processing logic.
+The MVP excludes:
 
-FastAPI Platform API
-The FastAPI service is responsible for:
+- Cloud deployment.
+- Kubernetes.
+- A web frontend.
+- User authentication and multi-user access control.
+- Retrieval-augmented generation.
+- Vector databases.
+- Document ingestion.
+- Agent workflows.
+- Model training or fine-tuning.
+- Conversation history and application data persistence.
+- Production-grade high availability.
+- Healthcare data or protected health information (PHI).
 
-Providing the external platform API.
-Validating requests.
-Forwarding model requests to Ollama.
-Returning normalized responses.
-Handling runtime errors.
-Providing health checks.
-Adding basic request logging and correlation identifiers.
-The API should not be tightly coupled to Ollama-specific request formats beyond the adapter or client layer.
+### 3.3 Data and Compliance Boundary
 
-Ollama
+The MVP must use synthetic or non-sensitive data only. Sensitive, proprietary, regulated, or personally identifiable information must not be included in source code, test fixtures, example requests, or project documentation.
+
+Security-conscious architecture does not establish regulatory compliance. The MVP must not be represented as HIPAA-compliant or suitable for regulated workloads.
+
+## 4. Technology Stack
+
+| Area | Technologies | Purpose |
+|---|---|---|
+| Infrastructure | Terraform, Terraform Docker provider | Define and provision local infrastructure |
+| Container runtime | Docker Engine | Run platform services |
+| Networking and storage | Docker networks and volumes | Provide internal connectivity and persistent model storage |
+| Platform API | Python, FastAPI, Pydantic, Uvicorn | Expose and validate the platform API |
+| Runtime integration | HTTPX | Communicate with Ollama over HTTP |
+| Model runtime | Ollama | Manage model artifacts and execute local inference |
+| Testing | Pytest, HTTPX test client, Docker-based integration tests | Validate application behavior and runtime integration |
+| Code quality | Ruff | Lint and format Python code |
+| Optional type checking | MyPy or Pyright | Provide additional static validation |
+
+Ollama is the initial runtime because it provides a straightforward local execution environment and HTTP API. Runtime-specific integration must remain isolated so that alternative runtimes can be evaluated later.
+
+### 4.1 Reference Model and Validation Profile
+
+Use Ollama's explicit `qwen2.5:1.5b` tag as the canonical MVP model for setup
+and integration testing. The Ollama Library lists this model at approximately
+986 MB and under the Apache 2.0 license ([model page](https://ollama.com/library/qwen2.5:1.5b)).
+Do not use a floating `latest` tag. Record the resolved model digest when the
+setup workflow is implemented; keep the model configurable for local overrides.
+
+The initial CPU-only validation target is an x86-64 host with 8 GiB of RAM and
+at least 10 GiB of free disk space. This is a target profile, not a verified
+minimum requirement. Validate it during implementation and record the tested
+host OS, CPU, memory, free disk, and measured peak resource use before claiming
+it as supported.
+
+## 5. High-Level Architecture
+
+```text
+┌────────────────────────────┐
+│ API Client                 │
+│ curl / Python / tests      │
+└──────────────┬─────────────┘
+               │ HTTP
+               ▼
+┌────────────────────────────┐
+│ FastAPI Platform API       │
+│ Validation and API contract│
+└──────────────┬─────────────┘
+               │ Runtime adapter / HTTP
+               ▼
+┌────────────────────────────┐
+│ Ollama                     │
+│ Local model execution      │
+└──────────────┬─────────────┘
+               │
+               ▼
+┌────────────────────────────┐
+│ Persistent Docker Volume   │
+│ Local model artifacts      │
+└────────────────────────────┘
+```
+
+Terraform provisions the Docker network, containers, port mappings, persistent storage, and infrastructure-level configuration.
+
+### 5.1 Request Flow
+
+1. A client submits a request to the FastAPI service.
+2. FastAPI validates the request against the platform schema.
+3. The runtime adapter translates the request into the Ollama contract.
+4. Ollama executes inference using an available local model.
+5. The adapter translates the runtime response into the platform response schema.
+6. FastAPI returns the response and records basic request metadata.
+
+Clients interact with the platform API rather than depending directly on Ollama-specific interfaces.
+
+## 6. Component Responsibilities
+
+### 6.1 Terraform
+
+Terraform is responsible for:
+
+- Creating the Docker network.
+- Provisioning the Ollama and FastAPI containers.
+- Assigning the Ollama container the stable name `ollama` for model preparation.
+- Provisioning persistent model storage.
+- Configuring service connectivity and required port mappings.
+- Defining container restart behavior.
+- Applying infrastructure configuration through documented variables.
+
+Terraform must not contain application logic or prompt-processing logic.
+
+The storage lifecycle must distinguish routine service teardown from explicit deletion of model artifacts.
+
+### 6.2 FastAPI Platform API
+
+The platform API is responsible for:
+
+- Exposing the external API contract.
+- Validating incoming requests.
+- Routing inference requests through a runtime client or adapter.
+- Returning normalized responses.
+- Handling runtime connectivity failures and timeouts.
+- Providing health information.
+- Recording basic request logs and correlation identifiers.
+
+Ollama-specific payloads and transport details must remain within the runtime integration layer.
+
+### 6.3 Ollama
+
 Ollama is responsible for:
 
-Running local language models.
-Managing local model artifacts.
-Processing generation requests.
-Providing the model runtime HTTP API.
-Ollama is an implementation detail behind the platform API.
+- Managing local model artifacts.
+- Loading and running local models.
+- Processing generation requests.
+- Providing the internal runtime HTTP API.
 
-7. Initial API Scope
-   The initial API will provide the following endpoints:
+Ollama remains an implementation detail behind the platform API.
 
-Health
-Http
+## 7. Initial API Scope
 
-Copy
+### 7.1 Health
+
+```http
 GET /health
-Purpose:
+```
 
-Confirm that the FastAPI application is running.
-Optionally report whether Ollama is reachable.
-List Models
-Http
+**Purpose:** Confirm that the FastAPI application is running.
 
-Copy
+The response may also report Ollama connectivity. If dependency status is included, the contract must clearly distinguish application liveness from runtime availability.
+
+### 7.2 List Models
+
+```http
 GET /api/v1/models
-Purpose:
+```
 
-Return models available to the local Ollama runtime.
-Chat Completion
-Http
+**Purpose:** Return models available in the local runtime.
 
-Copy
+The platform response must avoid exposing unnecessary runtime-specific details.
+
+### 7.3 Chat Completion
+
+```http
 POST /api/v1/chat
-Purpose:
+```
 
-Submit a conversational request to a selected local model.
-Return the generated response.
-Example conceptual request:
+**Purpose:** Submit a conversational request to a selected local model and return a generated response.
 
-JSON
+Conceptual request:
 
-Copy
+```json
 {
-"model": "llama3.2",
-"messages": [
-{
-"role": "user",
-"content": "Explain infrastructure as code."
+  "model": "qwen2.5:1.5b",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Explain infrastructure as code."
+    }
+  ],
+  "options": {
+    "temperature": 0.2
+  }
 }
-],
-"options": {
-"temperature": 0.2
-}
-}
-The exact request and response schemas will be defined during implementation.
+```
 
-8. Configuration
-   Configuration should be supplied through environment variables and documented in .env.example.
+The MVP supports non-streaming responses. Exact request schemas, response schemas, supported options, and error mappings will be defined during implementation and documented through FastAPI's generated OpenAPI specification.
 
-Potential configuration values include:
+Expected error scenarios include:
 
-Text
+- Invalid request data.
+- An unavailable or unknown model.
+- An unreachable model runtime.
+- An inference request exceeding the configured timeout.
+- An unexpected runtime failure.
 
-Copy
-OLLAMA_BASE_URL
-DEFAULT_MODEL
-API_HOST
-API_PORT
-LOG_LEVEL
-REQUEST_TIMEOUT_SECONDS
-Secrets are not expected in the initial MVP. If secrets are introduced later, they must not be committed to the repository.
+## 8. Configuration
 
-9. Persistence
-   The MVP requires persistent storage for Ollama model files.
+Application configuration will be supplied through environment variables and documented in `.env.example`.
 
-The model volume should survive:
+| Variable | Purpose |
+|---|---|
+| `OLLAMA_BASE_URL` | Internal HTTP address of the Ollama service |
+| `DEFAULT_MODEL` | Default model identifier; `qwen2.5:1.5b` for the MVP |
+| `API_HOST` | Application bind address inside the container (typically `0.0.0.0`; host publishing remains loopback-only) |
+| `API_PORT` | Application listening port |
+| `LOG_LEVEL` | Application logging verbosity |
+| `REQUEST_TIMEOUT_SECONDS` | Timeout for runtime requests |
 
-Container restarts
-Terraform re-application
-FastAPI container rebuilds
-The model volume should be removed only through an explicit cleanup process.
+Infrastructure configuration will use Terraform variables, with example values documented in `infra/terraform/terraform.tfvars.example`.
 
-Application state, conversation history, and user data are outside the initial scope.
+Configuration loading and precedence must be documented; `.env.example` is a reference template, not an automatically loaded configuration mechanism.
 
-10. Repository Scope
-    The initial repository should contain:
+Secrets are not expected in the MVP. If introduced later, they must not be committed to the repository.
 
-Text
+## 9. Persistence and Data Lifecycle
 
-Copy
-local-ai-platform/
+The MVP requires persistent storage for Ollama model artifacts.
+
+Model data must survive:
+
+- Container restarts.
+- Routine Terraform re-application.
+- FastAPI image rebuilds and container replacement.
+- Routine platform service teardown.
+
+Model artifacts must be deleted only through a documented, explicit cleanup process.
+
+The Terraform storage design must support this lifecycle. A volume managed in the same Terraform state as the services is ordinarily subject to `terraform destroy`; preservation must therefore be implemented deliberately rather than assumed.
+
+Conversation history, user records, and application state persistence are outside the MVP scope.
+
+## 10. Security and Operational Constraints
+
+The platform is intended for local development and portfolio demonstration, not deployment as a publicly accessible service.
+
+The MVP must:
+
+- Bind the published FastAPI port explicitly to `127.0.0.1`; do not publish
+  Ollama's API to the host by default.
+- Keep Ollama accessible through the internal Docker network unless direct access is explicitly needed for development.
+- Avoid logging prompt and response content by default.
+- Use synthetic or non-sensitive inputs.
+- Exclude local configuration, Terraform state, and generated artifacts from version control as appropriate.
+- Document resource requirements and expected limitations.
+
+Authentication is out of scope. The platform must not rely on the absence of authentication being acceptable beyond its local-only deployment boundary.
+
+Inference latency and supported model size depend on available CPU, memory, storage, and optional GPU capability. No production throughput or availability commitment is included in this scope.
+
+## 11. Repository Structure
+
+```text
+AI-Platform-Foundation-Local/
+├── AGENTS.md
+├── CHANGELOG.md
 ├── README.md
 ├── LICENSE
 ├── Makefile
 ├── pyproject.toml
+├── .gitignore
 ├── .env.example
-├── docker-compose.yml
+├── docker-compose.yml          # Optional developer convenience
 │
-├── app/
-│   ├── main.py
-│   ├── api/
-│   ├── clients/
-│   ├── models/
-│   ├── services/
-│   └── settings.py
+├── platform/
+│   ├── README.md
+│   ├── Dockerfile
+│   └── app/
+│       ├── main.py
+│       ├── api/
+│       ├── clients/
+│       ├── models/
+│       ├── services/
+│       └── settings.py
 │
 ├── tests/
 │   ├── unit/
 │   └── integration/
 │
-├── terraform/
-│   ├── main.tf
-│   ├── variables.tf
-│   ├── outputs.tf
-│   ├── versions.tf
-│   └── terraform.tfvars.example
+├── infra/
+│   └── terraform/
+│       ├── README.md
+│       ├── main.tf
+│       ├── variables.tf
+│       ├── outputs.tf
+│       ├── versions.tf
+│       └── terraform.tfvars.example
 │
+├── scripts/
+│   └── README.md
 └── docs/
-├── project-scope.md
-├── architecture.md
-├── getting-started.md
-└── decisions/
-Docker Compose may be included as a developer convenience, but Terraform should remain the primary provisioning mechanism for the MVP.
+    ├── project-scope.md
+    ├── architecture.md
+    ├── getting-started.md
+    └── decisions/
+```
 
-11. Operational Workflow
-    The expected workflow is:
+Terraform remains the primary provisioning mechanism. If Docker Compose is included, its purpose and resource ownership must be documented to avoid conflicting management of the same containers, networks, or volumes.
 
-Bash
+## 12. Operational Workflow
 
-Copy
-terraform init
-terraform validate
-terraform plan
-terraform apply
-After the platform is running:
+### 12.1 Prerequisites
 
-Bash
+The setup documentation must identify:
 
-Copy
+- Supported local environment.
+- Required Docker, Terraform, and Python versions.
+- Application image build steps.
+- The reference validation profile: CPU-only x86-64, 8 GiB RAM, and at least
+  10 GiB free disk; record actual test results before treating it as verified.
+- Network access required to download dependencies, images, and model artifacts.
+
+### 12.2 Provision Infrastructure
+
+From the repository root:
+
+```bash
+terraform -chdir=infra/terraform init
+terraform -chdir=infra/terraform validate
+terraform -chdir=infra/terraform plan
+terraform -chdir=infra/terraform apply
+```
+
+### 12.3 Prepare a Model
+
+After the Ollama container starts, download the canonical test model:
+
+```bash
+docker exec ollama ollama pull qwen2.5:1.5b
+```
+
+The Ollama container must have the stable name `ollama` for this command. Model
+download orchestration does not need to be implemented as Terraform application
+logic. Record the resolved model digest during setup; local overrides may use
+another installed model.
+
+### 12.4 Verify the Platform
+
+```bash
 curl http://localhost:8000/health
 curl http://localhost:8000/api/v1/models
-The platform should then support a chat request through the FastAPI endpoint.
+```
 
-Cleanup:
+Then submit a chat request to `POST /api/v1/chat` using an installed model.
 
-Bash
+### 12.5 Teardown and Cleanup
 
-Copy
-terraform destroy
-The documentation must clearly explain whether model data is preserved or deleted during destruction.
+The documented routine teardown must remove service resources while preserving model artifacts.
 
-12. MVP Acceptance Criteria
-    The MVP is complete when:
+Where services are managed in the primary Terraform configuration, the teardown command is:
 
-Terraform initializes successfully.
-Terraform validates successfully.
-Terraform provisions the required Docker resources.
-The FastAPI container starts successfully.
-The Ollama container starts successfully.
-FastAPI can communicate with Ollama.
-The health endpoint returns successfully.
-The models endpoint returns available models.
-The chat endpoint generates a response from a local model.
-Model data persists across container restarts.
-Unit tests are included.
-Integration tests cover FastAPI-to-Ollama communication.
-The README documents setup, execution, testing, and teardown.
-No sensitive or proprietary data is included.
-13. Future Enhancements
-    Potential future phases include:
+```bash
+terraform -chdir=infra/terraform destroy
+```
 
-Model management and model configuration
-Streaming responses
-Request and response metrics
-OpenTelemetry tracing
-Structured audit logging
-PostgreSQL metadata storage
-Document ingestion
-Vector search with Qdrant
-RAG workflows
-Authentication with Keycloak
-Kubernetes deployment
-Azure and AWS infrastructure
-CI/CD and Terraform security scanning
-These enhancements should be introduced based on demonstrated requirements rather than added all at once. My approach to platform architecture is to establish clear boundaries and operational foundations first, similar to the platform governance, cloud migration, API, and documentation work described in my professional background. 3
+Before this workflow is considered complete, the storage implementation must ensure that routine destruction does not delete model data.
 
-14. Project Positioning
-    This project demonstrates:
+A separate, explicit cleanup procedure must describe how to permanently remove retained model artifacts.
 
-Infrastructure as code with Terraform
-Local container platform provisioning
-Python API development
-FastAPI service design
-Local LLM execution
-API integration with an AI runtime
-Persistent model storage
-Automated testing
-Architecture documentation
-A foundation for future AI platform capabilities
-The central portfolio message is:
+## 13. Testing and Quality
 
-I built a reproducible local AI platform foundation using Terraform, Docker, Python, FastAPI, and Ollama, with a clean API boundary between platform services and locally hosted language models.
+### 13.1 Unit Tests
+
+Unit tests should cover:
+
+- Request validation.
+- Platform-to-runtime request translation.
+- Runtime-to-platform response normalization.
+- Configuration handling.
+- Error and timeout mapping.
+
+### 13.2 Integration Tests
+
+Docker-based integration tests must verify:
+
+- FastAPI-to-Ollama connectivity.
+- Model listing against a running runtime.
+- Successful chat generation using an installed model.
+
+Tests should validate response structure and successful generation rather than exact generated text.
+
+Runtime unavailability and timeout handling should also be tested where practical.
+
+### 13.3 Quality Checks
+
+The project must provide documented commands for:
+
+- Running unit tests.
+- Running integration tests.
+- Linting and formatting with Ruff.
+- Validating Terraform configuration.
+
+Static type checking with MyPy or Pyright is optional for the MVP.
+
+## 14. Deliverables
+
+The MVP will deliver:
+
+1. Terraform configuration for the local Docker platform.
+2. A containerized FastAPI application.
+3. An isolated Ollama integration layer.
+4. Persistent model storage with documented retention and deletion behavior.
+5. Health, model-listing, and chat endpoints.
+6. Unit and integration test suites.
+7. Configuration examples and repeatable developer commands.
+8. Setup, operation, testing, and teardown documentation.
+9. Architecture documentation and records of significant design decisions.
+
+## 15. MVP Acceptance Criteria
+
+The MVP is complete when:
+
+- [ ] Terraform initializes and validates successfully.
+- [ ] Terraform provisions the required Docker resources.
+- [ ] FastAPI and Ollama containers start successfully.
+- [ ] FastAPI communicates with Ollama over the internal network.
+- [ ] The health endpoint returns the documented response.
+- [ ] The models endpoint lists the canonical `qwen2.5:1.5b` model.
+- [ ] The resolved reference-model digest is recorded in setup documentation.
+- [ ] The chat endpoint generates a response from the canonical model.
+- [ ] Invalid requests and runtime failures produce documented API errors.
+- [ ] Model data persists across container restarts and routine re-provisioning.
+- [ ] Routine service teardown preserves model artifacts.
+- [ ] Explicit model-data deletion is documented.
+- [ ] Unit tests are included and pass.
+- [ ] Integration tests validate real FastAPI-to-Ollama communication.
+- [ ] Required linting and validation checks pass.
+- [ ] The README documents setup, model preparation, execution, testing, and teardown.
+- [ ] Architecture and significant design decisions are documented.
+- [ ] No sensitive or proprietary data is included.
+- [ ] FastAPI's published host port binds only to `127.0.0.1`; Ollama has no
+      published host port by default.
+- [ ] The reference validation profile is tested and its measured resource use
+      is documented.
+
+## 16. Key Risks and Dependencies
+
+| Risk or dependency | Impact | Mitigation |
+|---|---|---|
+| Insufficient local compute or memory | Slow inference or model load failures | Validate with a small model and document tested hardware |
+| Large model downloads | Longer setup times and increased disk usage | Document download sizes and persist model artifacts |
+| Runtime API changes | Integration failures | Isolate the runtime adapter and document tested versions |
+| Destructive storage lifecycle | Loss of downloaded models | Separate retention from routine teardown and verify cleanup behavior |
+| Nondeterministic model output | Brittle automated tests | Assert response structure and meaningful output, not exact wording |
+| Terraform and Compose ownership overlap | Conflicting infrastructure state | Keep Terraform primary and clearly separate optional Compose workflows |
+
+## 17. Future Enhancements
+
+Potential future phases include:
+
+- Expanded model management and configuration.
+- Streaming responses.
+- Request and response metrics.
+- OpenTelemetry tracing.
+- Structured audit logging.
+- PostgreSQL metadata storage.
+- Document ingestion.
+- Vector search with Qdrant.
+- RAG workflows.
+- Authentication with Keycloak.
+- Kubernetes deployment.
+- Azure and AWS infrastructure.
+- CI/CD automation and Terraform security scanning.
+
+These capabilities are not MVP commitments. Each should be introduced only after its requirements, operational cost, security implications, and architectural impact have been evaluated.
+
+## 18. Project Positioning
+
+This project demonstrates:
+
+- Infrastructure as code with Terraform.
+- Local container platform provisioning.
+- Python API development and FastAPI service design.
+- Local language model execution.
+- API integration with an AI runtime.
+- Persistent model storage.
+- Automated testing.
+- Reproducible operational workflows.
+- Architecture and decision documentation.
+- A foundation for future AI platform capabilities.
+
+### Portfolio Summary
+
+> I built a reproducible local AI platform foundation using Terraform, Docker, Python, FastAPI, and Ollama, with a clean API boundary between platform services and locally hosted language models.

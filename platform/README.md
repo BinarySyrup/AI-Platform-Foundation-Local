@@ -1,8 +1,10 @@
 # Platform
 
-Service definitions and platform configuration belong here. Keep deployment
-configuration separate from infrastructure provisioning in `infra/terraform/`.
+The FastAPI service, its Dockerfile, and platform configuration belong here.
+Keep deployment configuration separate from infrastructure provisioning in
+`infra/terraform/`; the selected model runtime is Ollama.
 
-Before adding services, document the selected runtime, version-pinning policy,
-ports and network exposure, persistent data locations, health checks, and
-upgrade/rollback procedure. Do not commit credentials or generated model data.
+Follow `docs/project-scope.md` for the reference model, localhost-only host port
+binding, persistent model data, and health-check requirements. Pin service
+versions and document upgrade/rollback procedures. Do not commit credentials or
+generated model data.
