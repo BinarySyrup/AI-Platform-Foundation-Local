@@ -22,27 +22,63 @@ for the complete MVP scope and acceptance criteria.
 
 ## Project Status
 
-The stack and target architecture are documented, but this repository is still
-a documentation baseline: Terraform resources, the FastAPI application, and
-tests have not been implemented. The commands below describe the intended
-workflow and are not runnable until those components are added.
+The FastAPI application, Ollama adapter, API container definition, and unit
+tests are implemented. Terraform resources and the full Docker platform
+deployment are still pending, so the infrastructure workflow below is not
+runnable yet.
 
 The initial CPU-only validation target is an x86-64 host with 8 GiB of RAM and
 at least 10 GiB of free disk. This is a target profile, not a verified minimum;
 record the tested host and measured resource use before claiming support.
 
-## Planned Workflow
+## Run the API Locally
 
-### Prerequisites
+Use Python 3.14 only. From the repository root, install dependencies and run the
+service in PowerShell:
 
-The implementation must document supported host platforms and pin the required
-Terraform, provider, Docker, Python, and Ollama image versions. Docker must be
-available to the Terraform Docker provider.
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+$env:OLLAMA_BASE_URL = "http://127.0.0.1:11434"
+python -m app.run
+```
 
-### Provision
+This development setup expects Ollama to be reachable from the host and binds
+the API to `127.0.0.1`. The container default instead uses
+`http://ollama:11434` over the internal Docker network. `.env.example` lists
+configuration variables but is not loaded automatically.
 
-Run these commands from the repository root after the Terraform configuration
-is implemented:
+The API provides `GET /` for an HTML page with the current API version,
+`GET /health`, `GET /api/v1/models`, and `POST /api/v1/chat`. Interactive
+OpenAPI documentation is available at
+`http://127.0.0.1:8000/docs`. The request schema and error contract are described
+in [`docs/project-scope.md`](docs/project-scope.md).
+
+## Tests and API Image
+
+Run unit tests and Ruff checks from the repository root:
+
+```powershell
+python -m pytest tests/unit
+python -m ruff check .
+python -m ruff format --check .
+```
+
+Integration tests require an Ollama service with `qwen2.5:1.5b` installed. Set
+`RUN_OLLAMA_INTEGRATION=1` and `OLLAMA_BASE_URL` to a reachable Ollama API, then
+run `python -m pytest -m integration`.
+
+Build the API container image from the repository root:
+
+```powershell
+docker build -f platform/Dockerfile -t local-ai-platform-api:0.1.0 .
+```
+
+## Planned Infrastructure Workflow
+
+Terraform deployment resources have not been implemented. Once they are added,
+the intended commands from the repository root are:
 
 ```bash
 terraform -chdir=infra/terraform init
@@ -51,39 +87,16 @@ terraform -chdir=infra/terraform plan
 terraform -chdir=infra/terraform apply
 ```
 
-Review the plan before applying. The FastAPI port must be published on
-`127.0.0.1` only; Ollama remains on the internal Docker network.
-
-### Prepare and Verify
-
-The reference model is downloaded into the persistent Ollama volume:
+Review plans before applying. Publish the FastAPI host port on `127.0.0.1` only
+and keep Ollama on the internal Docker network. The reference model is prepared
+inside the Ollama container with:
 
 ```bash
 docker exec ollama ollama pull qwen2.5:1.5b
 ```
 
-Then check the API and installed models:
-
-```bash
-curl http://localhost:8000/health
-curl http://localhost:8000/api/v1/models
-```
-
-The chat endpoint is `POST /api/v1/chat`. Its final request and response schema
-will be defined in the API's OpenAPI documentation; integration tests use the
-reference model and validate successful generation without asserting exact
-wording.
-
-### Teardown
-
-Routine service teardown uses:
-
-```bash
-terraform -chdir=infra/terraform destroy
-```
-
-Routine teardown must preserve model artifacts. Permanently deleting the model
-volume requires a separate, documented cleanup procedure.
+Routine `terraform destroy` must preserve model artifacts; permanent deletion
+requires a separate, documented cleanup procedure.
 
 ## Repository Layout
 

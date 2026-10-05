@@ -73,12 +73,15 @@ Security-conscious architecture does not establish regulatory compliance. The MV
 | Infrastructure | Terraform, Terraform Docker provider | Define and provision local infrastructure |
 | Container runtime | Docker Engine | Run platform services |
 | Networking and storage | Docker networks and volumes | Provide internal connectivity and persistent model storage |
-| Platform API | Python, FastAPI, Pydantic, Uvicorn | Expose and validate the platform API |
+| Platform API | Python 3.14, FastAPI, Pydantic, Uvicorn | Expose and validate the platform API |
 | Runtime integration | HTTPX | Communicate with Ollama over HTTP |
 | Model runtime | Ollama | Manage model artifacts and execute local inference |
 | Testing | Pytest, HTTPX test client, Docker-based integration tests | Validate application behavior and runtime integration |
 | Code quality | Ruff | Lint and format Python code |
 | Optional type checking | MyPy or Pyright | Provide additional static validation |
+
+Runtime and development dependency versions are pinned in the root
+`pyproject.toml`; the API supports Python 3.14 only.
 
 Ollama is the initial runtime because it provides a straightforward local execution environment and HTTP API. Runtime-specific integration must remain isolated so that alternative runtimes can be evaluated later.
 
@@ -181,7 +184,20 @@ Ollama remains an implementation detail behind the platform API.
 
 ## 7. Initial API Scope
 
-### 7.1 Health
+### 7.1 API Landing Page
+
+```http
+GET /
+```
+
+**Purpose:** Return a simple HTML landing page showing the current API version.
+The displayed version comes from FastAPI's application version metadata.
+
+```html
+<html><body><h1>AI Platform Foundation - API</h1><div>API Version:0.1.0</div></body></html>
+```
+
+### 7.2 Health
 
 ```http
 GET /health
@@ -189,9 +205,13 @@ GET /health
 
 **Purpose:** Confirm that the FastAPI application is running.
 
-The response may also report Ollama connectivity. If dependency status is included, the contract must clearly distinguish application liveness from runtime availability.
+This is a liveness check and does not call Ollama. A successful response is:
 
-### 7.2 List Models
+```json
+{"status":"ok"}
+```
+
+### 7.3 List Models
 
 ```http
 GET /api/v1/models
@@ -199,9 +219,13 @@ GET /api/v1/models
 
 **Purpose:** Return models available in the local runtime.
 
-The platform response must avoid exposing unnecessary runtime-specific details.
+The response contains model names only, avoiding runtime-specific metadata:
 
-### 7.3 Chat Completion
+```json
+{"models":[{"name":"qwen2.5:1.5b"}]}
+```
+
+### 7.4 Chat Completion
 
 ```http
 POST /api/v1/chat
@@ -226,7 +250,30 @@ Conceptual request:
 }
 ```
 
-The MVP supports non-streaming responses. Exact request schemas, response schemas, supported options, and error mappings will be defined during implementation and documented through FastAPI's generated OpenAPI specification.
+The MVP supports non-streaming responses. The implemented request and response
+schemas are published through FastAPI's generated OpenAPI specification.
+
+The implemented request contract accepts 1–100 messages with roles `system`,
+`user`, or `assistant`; message content must be non-blank and no longer than
+32,000 characters. `model` is optional and defaults to `DEFAULT_MODEL`. The
+only supported option is `temperature`, between 0 and 2.
+
+Successful responses use the normalized form:
+
+```json
+{
+  "model": "qwen2.5:1.5b",
+  "message": {"role":"assistant","content":"..."}
+}
+```
+
+Errors use an `error` object containing a stable `code` and safe `message`, plus
+a `request_id`. Validation responses may include field-level details. The API
+maps invalid requests to 422, unavailable models to 404, runtime timeouts to
+504, runtime connectivity failures to 503, invalid upstream responses to 502,
+and unexpected failures to 500. Every response includes an `X-Request-ID`
+header. Request logs include method, path, status, duration, and request ID, but
+never request or response content.
 
 Expected error scenarios include:
 
@@ -244,10 +291,13 @@ Application configuration will be supplied through environment variables and doc
 |---|---|
 | `OLLAMA_BASE_URL` | Internal HTTP address of the Ollama service |
 | `DEFAULT_MODEL` | Default model identifier; `qwen2.5:1.5b` for the MVP |
-| `API_HOST` | Application bind address inside the container (typically `0.0.0.0`; host publishing remains loopback-only) |
+| `API_HOST` | Application bind address; local process defaults to `127.0.0.1`, while the container sets `0.0.0.0` and relies on loopback-only host port publishing |
 | `API_PORT` | Application listening port |
 | `LOG_LEVEL` | Application logging verbosity |
 | `REQUEST_TIMEOUT_SECONDS` | Timeout for runtime requests |
+
+The application reads process environment variables directly. `.env.example`
+is documentation only and is not loaded automatically.
 
 Infrastructure configuration will use Terraform variables, with example values documented in `infra/terraform/terraform.tfvars.example`.
 
