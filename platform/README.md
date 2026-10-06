@@ -48,9 +48,21 @@ python -m ruff check .
 python -m ruff format --check .
 ```
 
-Integration tests require a running Ollama service with the reference model
-installed. Set `RUN_OLLAMA_INTEGRATION=1` and configure `OLLAMA_BASE_URL` before
-running `python -m pytest -m integration`.
+Integration tests require a running Ollama service with the configured model
+installed. They remain opt-in. From PowerShell, configure the endpoint, model,
+and timeout, then run the integration marker:
+
+```powershell
+$env:RUN_OLLAMA_INTEGRATION = "1"
+$env:OLLAMA_BASE_URL = "http://127.0.0.1:11434"
+$env:OLLAMA_INTEGRATION_MODEL = "qwen2.5:1.5b"
+$env:OLLAMA_INTEGRATION_TIMEOUT_SECONDS = "180"
+python -m pytest -m integration
+```
+
+The model setting falls back to `DEFAULT_MODEL`, then `qwen2.5:1.5b`; endpoint
+defaults to localhost and timeout falls back to `REQUEST_TIMEOUT_SECONDS`, then
+120 seconds. Use only synthetic prompts and a trusted Ollama endpoint.
 
 For a standalone development build, create the API image from the repository
 root. Terraform builds it automatically during apply:

@@ -40,7 +40,7 @@ service in PowerShell:
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
-$env:OLLAMA_BASE_URL = "http://127.0.0.1:11434"
+$env:OLLAMA_BASE_URL = "http://ollama:11434"
 python -m app.run
 ```
 
@@ -65,9 +65,22 @@ python -m ruff check .
 python -m ruff format --check .
 ```
 
-Integration tests require an Ollama service with `qwen2.5:1.5b` installed. Set
-`RUN_OLLAMA_INTEGRATION=1` and `OLLAMA_BASE_URL` to a reachable Ollama API, then
-run `python -m pytest -m integration`.
+Integration tests require an Ollama service and an installed model. They remain
+opt-in; configure the endpoint, model, and timeout in PowerShell, then run the
+integration marker:
+
+```powershell
+$env:RUN_OLLAMA_INTEGRATION = "1"
+$env:OLLAMA_BASE_URL = "http://127.0.0.1:11434"
+$env:OLLAMA_INTEGRATION_MODEL = "qwen2.5:1.5b"
+$env:OLLAMA_INTEGRATION_TIMEOUT_SECONDS = "180"
+python -m pytest -m integration
+```
+
+`OLLAMA_INTEGRATION_MODEL` falls back to `DEFAULT_MODEL`, then `qwen2.5:1.5b`.
+The endpoint defaults to localhost; the timeout falls back to
+`REQUEST_TIMEOUT_SECONDS`, then 120 seconds. Use only synthetic prompts and a
+trusted Ollama endpoint.
 
 Build the API container image from the repository root:
 
