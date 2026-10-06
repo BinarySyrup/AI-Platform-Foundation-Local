@@ -21,7 +21,7 @@ The MVP will:
 - Maintain a clear boundary between the platform API and the model runtime.
 - Provide repeatable setup, operation, and teardown workflows.
 - Persist downloaded model artifacts independently of container lifecycle.
-- Include unit tests and real integration tests where practical.
+- Include unit tests for API behavior and repeatable Docker deployment checks.
 - Document architecture, implementation decisions, configuration, and operation.
 - Establish an extensible foundation for future AI platform capabilities.
 
@@ -40,7 +40,7 @@ The MVP includes:
 - Runtime error handling and configurable request timeouts.
 - Basic request logging and correlation identifiers.
 - Environment-based application configuration.
-- Automated unit and integration testing.
+- Automated unit testing and documented Docker deployment checks.
 - Local setup, model preparation, operation, and cleanup documentation.
 
 ### 3.2 Out of Scope
@@ -76,22 +76,24 @@ Security-conscious architecture does not establish regulatory compliance. The MV
 | Platform API | Python 3.14, FastAPI, Pydantic, Uvicorn | Expose and validate the platform API |
 | Runtime integration | HTTPX | Communicate with Ollama over HTTP |
 | Model runtime | Ollama `ollama/ollama:0.35.1` | Manage model artifacts and execute local inference |
-| Testing | Pytest, HTTPX test client, Docker-based integration tests | Validate application behavior and runtime integration |
+| Testing | Pytest, HTTPX test client | Validate API behavior and verify connectivity through Docker deployment checks |
 | Code quality | Ruff | Lint and format Python code |
 | Optional type checking | MyPy or Pyright | Provide additional static validation |
 
 Runtime and development dependency versions are pinned in the root
 `pyproject.toml`; the API supports Python 3.14 only.
 
-Ollama is the initial runtime because it provides a straightforward local execution environment and HTTP API. Runtime-specific integration must remain isolated so that alternative runtimes can be evaluated later.
+Ollama is the initial model runtime, deployed as a Docker container and accessed
+over the private Docker network. Runtime-specific HTTP behavior remains isolated
+so alternative runtimes can be evaluated later.
 
 ### 4.1 Reference Model and Validation Profile
 
-Use Ollama's explicit `qwen2.5:1.5b` tag as the canonical MVP model for setup
-and integration testing. The Ollama Library lists this model at approximately
-986 MB and under the Apache 2.0 license ([model page](https://ollama.com/library/qwen2.5:1.5b)).
-Do not use a floating `latest` tag. Record the resolved model digest when the
-setup workflow is implemented; keep the model configurable for local overrides.
+Use Ollama's explicit `llama3.1:8b` tag as the default MVP model for setup and
+Docker deployment verification. Refer to the [Ollama model listing](https://ollama.com/library/llama3.1)
+for current model details. Do not use a floating `latest` tag. Record the
+resolved model digest during deployment validation, and keep the model
+configurable through Docker deployment settings.
 
 The initial CPU-only validation target is an x86-64 host with 8 GiB of RAM and
 at least 10 GiB of free disk space. This is a target profile, not a verified
@@ -193,10 +195,6 @@ GET /
 **Purpose:** Return a simple HTML landing page showing the current API version.
 The displayed version comes from FastAPI's application version metadata.
 
-```html
-<html><body><h1>AI Platform Foundation - API</h1><div>API Version:0.1.0</div></body></html>
-```
-
 ### 7.2 Health
 
 ```http
@@ -222,7 +220,7 @@ GET /api/v1/models
 The response contains model names only, avoiding runtime-specific metadata:
 
 ```json
-{"models":[{"name":"qwen2.5:1.5b"}]}
+{"models":[{"name":"llama3.1:8b"}]}
 ```
 
 ### 7.4 Chat Completion
@@ -237,7 +235,7 @@ Conceptual request:
 
 ```json
 {
-  "model": "qwen2.5:1.5b",
+  "model": "llama3.1:8b",
   "messages": [
     {
       "role": "user",
@@ -262,7 +260,7 @@ Successful responses use the normalized form:
 
 ```json
 {
-  "model": "qwen2.5:1.5b",
+  "model": "llama3.1:8b",
   "message": {"role":"assistant","content":"..."}
 }
 ```
@@ -290,7 +288,7 @@ Application configuration will be supplied through environment variables and doc
 | Variable | Purpose |
 |---|---|
 | `OLLAMA_BASE_URL` | Internal HTTP address of the Ollama service |
-| `DEFAULT_MODEL` | Default model identifier; `qwen2.5:1.5b` for the MVP |
+| `DEFAULT_MODEL` | Default model identifier; `llama3.1:8b` for the MVP |
 | `API_HOST` | Application bind address; local process defaults to `127.0.0.1`, while the container sets `0.0.0.0` and relies on loopback-only host port publishing |
 | `API_PORT` | Application listening port |
 | `LOG_LEVEL` | Application logging verbosity |
@@ -328,7 +326,8 @@ Conversation history, user records, and application state persistence are outsid
 
 ## 10. Security and Operational Constraints
 
-The platform is intended for local development and portfolio demonstration, not deployment as a publicly accessible service.
+The platform is intended for local Docker deployment and portfolio
+demonstration, not as a publicly accessible service.
 
 The MVP must:
 
@@ -348,47 +347,43 @@ Inference latency and supported model size depend on available CPU, memory, stor
 
 ```text
 AI-Platform-Foundation-Local/
+├── .dockerignore
+├── .env.example
 ├── AGENTS.md
 ├── CHANGELOG.md
 ├── README.md
 ├── LICENSE
-├── Makefile
 ├── pyproject.toml
 ├── .gitignore
-├── .env.example
-├── docker-compose.yml          # Optional developer convenience
-│
+├── docs/
+│   ├── architecture.md
+│   └── project-scope.md
+├── infra/
+│   └── terraform/
+│       ├── .terraform.lock.hcl
+│       ├── README.md
+│       ├── main.tf
+│       ├── outputs.tf
+│       ├── terraform.tfvars.example
+│       ├── variables.tf
+│       └── versions.tf
 ├── platform/
-│   ├── README.md
 │   ├── Dockerfile
+│   ├── README.md
 │   └── app/
-│       ├── main.py
 │       ├── api/
 │       ├── clients/
 │       ├── models/
-│       ├── services/
+│       ├── __init__.py
+│       ├── main.py
+│       ├── run.py
 │       └── settings.py
-│
-├── tests/
-│   ├── unit/
-│   └── integration/
-│
-├── infra/
-│   └── terraform/
-│       ├── README.md
-│       ├── main.tf
-│       ├── variables.tf
-│       ├── outputs.tf
-│       ├── versions.tf
-│       └── terraform.tfvars.example
-│
 ├── scripts/
 │   └── README.md
-└── docs/
-    ├── project-scope.md
-    ├── architecture.md
-    ├── getting-started.md
-    └── decisions/
+└── tests/
+    ├── unit/
+    ├── __init__.py
+    └── helpers.py
 ```
 
 Terraform remains the primary provisioning mechanism. If Docker Compose is included, its purpose and resource ownership must be documented to avoid conflicting management of the same containers, networks, or volumes.
@@ -422,7 +417,7 @@ terraform -chdir=infra/terraform apply
 After the Ollama container starts, download the canonical test model:
 
 ```bash
-docker exec ollama ollama pull qwen2.5:1.5b
+docker exec ollama ollama pull llama3.1:8b
 ```
 
 The Ollama container must have the stable name `ollama` for this command. Model
@@ -470,26 +465,26 @@ Unit tests should cover:
 - Configuration handling.
 - Error and timeout mapping.
 
-### 13.2 Integration Tests
+### 13.2 Docker Deployment Checks
 
-Docker-based integration tests must verify:
+After deployment, verify the environment through the API published on
+`127.0.0.1:8000`:
 
-- FastAPI-to-Ollama connectivity.
-- Model listing against a running runtime.
-- Successful chat generation using an installed model.
+- The API health endpoint responds successfully.
+- The model-listing endpoint reaches Ollama on the private Docker network.
+- The chat endpoint returns a response using the installed reference model.
 
-Tests should validate response structure and successful generation rather than exact generated text.
-
-Runtime unavailability and timeout handling should also be tested where practical.
+These are deployment smoke checks, not a host-local Ollama integration-test
+suite. Do not assert exact generated text.
 
 ### 13.3 Quality Checks
 
 The project must provide documented commands for:
 
 - Running unit tests.
-- Running integration tests.
 - Linting and formatting with Ruff.
 - Validating Terraform configuration.
+- Verifying the deployed API and runtime through the published API.
 
 Static type checking with MyPy or Pyright is optional for the MVP.
 
@@ -502,9 +497,9 @@ The MVP will deliver:
 3. An isolated Ollama integration layer.
 4. Persistent model storage with documented retention and deletion behavior.
 5. Health, model-listing, and chat endpoints.
-6. Unit and integration test suites.
-7. Configuration examples and repeatable developer commands.
-8. Setup, operation, testing, and teardown documentation.
+6. Unit test suite and documented Docker deployment checks.
+7. Configuration examples and repeatable deployment commands.
+8. Setup, operation, verification, and teardown documentation.
 9. Architecture documentation and records of significant design decisions.
 
 ## 15. MVP Acceptance Criteria
@@ -516,7 +511,7 @@ The MVP is complete when:
 - [ ] FastAPI and Ollama containers start successfully.
 - [ ] FastAPI communicates with Ollama over the internal network.
 - [ ] The health endpoint returns the documented response.
-- [ ] The models endpoint lists the canonical `qwen2.5:1.5b` model.
+- [ ] The models endpoint lists the canonical `llama3.1:8b` model.
 - [ ] The resolved reference-model digest is recorded in setup documentation.
 - [ ] The chat endpoint generates a response from the canonical model.
 - [ ] Invalid requests and runtime failures produce documented API errors.
@@ -524,7 +519,8 @@ The MVP is complete when:
 - [ ] Routine service teardown preserves model artifacts.
 - [ ] Explicit model-data deletion is documented.
 - [ ] Unit tests are included and pass.
-- [ ] Integration tests validate real FastAPI-to-Ollama communication.
+- [ ] The deployed API lists models and completes a chat request through the
+      Ollama container.
 - [ ] Required linting and validation checks pass.
 - [ ] The README documents setup, model preparation, execution, testing, and teardown.
 - [ ] Architecture and significant design decisions are documented.
@@ -540,9 +536,9 @@ The MVP is complete when:
 |---|---|---|
 | Insufficient local compute or memory | Slow inference or model load failures | Validate with a small model and document tested hardware |
 | Large model downloads | Longer setup times and increased disk usage | Document download sizes and persist model artifacts |
-| Runtime API changes | Integration failures | Isolate the runtime adapter and document tested versions |
+| Runtime API changes | Model-listing or chat failures | Isolate the runtime adapter and verify the pinned runtime in Docker |
 | Destructive storage lifecycle | Loss of downloaded models | Separate retention from routine teardown and verify cleanup behavior |
-| Nondeterministic model output | Brittle automated tests | Assert response structure and meaningful output, not exact wording |
+| Nondeterministic model output | Unreliable deployment checks | Verify successful responses without requiring exact generated wording |
 | Terraform and Compose ownership overlap | Conflicting infrastructure state | Keep Terraform primary and clearly separate optional Compose workflows |
 
 ## 17. Future Enhancements

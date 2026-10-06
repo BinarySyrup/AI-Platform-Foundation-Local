@@ -4,24 +4,12 @@ This directory contains the FastAPI application, its Ollama adapter, and the
 API container image. Terraform in `infra/terraform/` builds the image and runs
 the API beside Ollama on a private Docker network.
 
-## Local Development
+## Docker Deployment
 
-Use Python 3.14 only and install the pinned development dependencies from the
-repository root:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev]"
-$env:OLLAMA_BASE_URL = "http://127.0.0.1:11434"
-python -m app.run
-```
-
-The local process binds to `127.0.0.1`. `OLLAMA_BASE_URL` must point to an
-Ollama instance reachable from the host. In the container deployment, the
-default is `http://ollama:11434` on the internal Docker network. The root
-`.env.example` is a reference template; Pydantic settings reads process
-environment variables and does not load that file automatically.
+The API is intended to run in the Terraform-managed Docker environment, not as
+a host process connected to a local Ollama server. It reaches Ollama at
+`http://ollama:11434` on the private Docker network. The API is published on
+`127.0.0.1:8000` by the Terraform configuration.
 
 ## API
 
@@ -48,15 +36,11 @@ python -m ruff check .
 python -m ruff format --check .
 ```
 
-Integration tests require a running Ollama service with the reference model
-installed. Set `RUN_OLLAMA_INTEGRATION=1` and configure `OLLAMA_BASE_URL` before
-running `python -m pytest -m integration`.
-
-For a standalone development build, create the API image from the repository
-root. Terraform builds it automatically during apply:
+Terraform builds the API image automatically during apply. To build it
+manually from the repository root:
 
 ```powershell
-docker build -f platform/Dockerfile -t local-ai-platform-api:0.1.0 .
+docker build -f platform/Dockerfile -t local-ai-platform-api:1.0.0 .
 ```
 
 The image listens on port 8000 inside its container. Publish the host port on

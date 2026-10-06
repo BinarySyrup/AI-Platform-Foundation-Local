@@ -18,7 +18,7 @@ class FakeRuntime:
         self.chat_error = chat_error
         self.chat_call: dict[str, object] | None = None
         self.model_list_calls = 0
-        self.models = [ModelSummary(name="qwen2.5:1.5b")]
+        self.models = [ModelSummary(name="llama3.1:8b")]
 
     async def list_models(self) -> list[ModelSummary]:
         self.model_list_calls += 1
@@ -48,7 +48,7 @@ class FakeRuntime:
 
 
 def make_app(runtime: FakeRuntime) -> FastAPI:
-    settings = Settings(default_model="qwen2.5:1.5b")
+    settings = Settings(default_model="llama3.1:8b")
     return create_app(settings=settings, runtime=runtime)
 
 
@@ -81,7 +81,7 @@ def test_model_list_is_normalized() -> None:
     response = send_request(make_app(FakeRuntime()), "GET", "/api/v1/models")
 
     assert response.status_code == 200
-    assert response.json() == {"models": [{"name": "qwen2.5:1.5b"}]}
+    assert response.json() == {"models": [{"name": "llama3.1:8b"}]}
 
 
 def test_chat_uses_default_model_and_normalizes_response() -> None:
@@ -99,14 +99,14 @@ def test_chat_uses_default_model_and_normalizes_response() -> None:
 
     assert response.status_code == 200
     assert response.json() == {
-        "model": "qwen2.5:1.5b",
+        "model": "llama3.1:8b",
         "message": {
             "role": "assistant",
             "content": "Use infrastructure as code.",
         },
     }
     assert runtime.chat_call == {
-        "model": "qwen2.5:1.5b",
+        "model": "llama3.1:8b",
         "messages": [ChatMessage(role="user", content="Explain IaC.")],
         "temperature": 0.2,
     }

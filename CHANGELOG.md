@@ -1,25 +1,22 @@
 # Changelog
 
-Notable project changes are documented here.
+All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.0.0] - 2026-10-06
 
 ### Added
 
-- Defined the local AI platform MVP around Terraform, Docker, FastAPI, and Ollama.
-- Added architecture and project-scope documentation, plus guidance for agents
-  and the infrastructure, platform, and scripts directories.
-- Added a FastAPI application with an Ollama adapter, validated API schemas,
-  normalized errors, request IDs, and unit/integration tests.
-- Added a root HTML endpoint that reports the current API version.
-- Added Terraform-managed Docker networking, API and Ollama containers, and a
-  retained Ollama model volume.
-
-### Changed
-
-- Expanded the README with project goals, repository layout, and safety guidance.
-- Extended `.gitignore` for local secrets, Terraform plans and state, Python
-  artifacts, local model data, and IDE files.
-- Aligned the scope, README, architecture, and Terraform guidance on the selected
-  stack and repository paths; specified loopback-only API publishing and a
-  pinned reference model/profile.
+- Terraform-managed Docker deployment with a private network, FastAPI API and
+  Ollama containers, and a persistent model volume.
+- Versioned API endpoints for the HTML landing page, health, model listing, and
+  non-streaming chat, with validated schemas, normalized errors, and request IDs.
+- `llama3.1:8b` as the default model and pinned release versions for Python,
+  Terraform, the Docker provider, and the Ollama image.
+- Loopback-only API publishing, private Ollama networking, and model retention
+  across routine teardown.
+- Unit tests and documented deployment smoke checks.
+- README, architecture, project-scope, setup, operation, and teardown
+  documentation, plus repository ignore rules for local and generated files.

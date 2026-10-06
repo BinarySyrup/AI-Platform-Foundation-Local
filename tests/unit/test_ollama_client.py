@@ -37,8 +37,7 @@ def test_list_models_returns_only_public_names() -> None:
             json={
                 "models": [
                     {
-                        "name": "qwen2.5:1.5b",
-                        "size": 986000000,
+                        "name": "llama3.1:8b",
                         "digest": "internal-digest",
                     }
                 ]
@@ -51,7 +50,7 @@ def test_list_models_returns_only_public_names() -> None:
 
     models = run_async(operation())
 
-    assert [model.name for model in models] == ["qwen2.5:1.5b"]
+    assert [model.name for model in models] == ["llama3.1:8b"]
 
 
 def test_chat_uses_non_streaming_runtime_contract() -> None:
@@ -62,7 +61,7 @@ def test_chat_uses_non_streaming_runtime_contract() -> None:
         return httpx.Response(
             200,
             json={
-                "model": "qwen2.5:1.5b",
+                "model": "llama3.1:8b",
                 "message": {"role": "assistant", "content": "Hello."},
                 "done": True,
             },
@@ -71,7 +70,7 @@ def test_chat_uses_non_streaming_runtime_contract() -> None:
     async def operation():
         async with make_async_client(handler) as http_client:
             return await OllamaClient(http_client).chat(
-                model="qwen2.5:1.5b",
+                model="llama3.1:8b",
                 messages=[ChatMessage(role="user", content="Hi.")],
                 temperature=0.2,
             )
@@ -82,7 +81,7 @@ def test_chat_uses_non_streaming_runtime_contract() -> None:
     assert requests[0].method == "POST"
     assert requests[0].url.path == "/api/chat"
     assert sent == {
-        "model": "qwen2.5:1.5b",
+        "model": "llama3.1:8b",
         "messages": [{"role": "user", "content": "Hi."}],
         "stream": False,
         "options": {"temperature": 0.2},

@@ -37,7 +37,7 @@ volume reported by `terraform output ollama_volume_name`. Pull the reference
 model explicitly after the container starts:
 
 ```powershell
-docker exec ollama ollama pull qwen2.5:1.5b
+docker exec ollama ollama pull llama3.1:8b
 ```
 
 Record the resolved digest shown by `docker exec ollama ollama list` in the

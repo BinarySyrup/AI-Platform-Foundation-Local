@@ -12,13 +12,13 @@ variable "api_host_port" {
 variable "api_image_name" {
   description = "Tag assigned to the locally built platform API image."
   type        = string
-  default     = "local-ai-platform-api:0.1.0"
+  default     = "local-ai-platform-api:1.0.0"
 }
 
 variable "default_model" {
   description = "Default Ollama model requested by the platform API."
   type        = string
-  default     = "qwen2.5:1.5b"
+  default     = "llama3.1:8b"
 
   validation {
     condition     = length(trimspace(var.default_model)) > 0
