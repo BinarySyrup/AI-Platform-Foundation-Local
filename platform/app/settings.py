@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     )
 
     ollama_base_url: AnyHttpUrl = "http://ollama:11434"
-    default_model: str = "qwen2.5:1.5b"
+    default_model: str = "llama3.1:8b"
     api_host: str = "127.0.0.1"
     api_port: int = Field(default=8000, ge=1, le=65535)
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"

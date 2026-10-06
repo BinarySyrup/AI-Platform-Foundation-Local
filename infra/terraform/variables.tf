@@ -18,7 +18,7 @@ variable "api_image_name" {
 variable "default_model" {
   description = "Default Ollama model requested by the platform API."
   type        = string
-  default     = "qwen2.5:1.5b"
+  default     = "llama3.1:8b"
 
   validation {
     condition     = length(trimspace(var.default_model)) > 0

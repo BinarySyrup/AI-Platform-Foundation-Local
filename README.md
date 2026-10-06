@@ -4,16 +4,16 @@ A local-first AI platform MVP built with Terraform, Docker, FastAPI, and Ollama.
 The project demonstrates repeatable infrastructure provisioning and a stable
 API boundary around locally hosted language models.
 
-## MVP Stack
+## Tech Stack
 
-| Area | Selection |
+| Area | Frameworks |
 | --- | --- |
-| Infrastructure | Terraform with the Docker provider |
-| Container runtime | Docker Engine |
-| Platform API | Python and FastAPI |
-| Model runtime | Ollama |
-| Reference model | [`qwen2.5:1.5b`](https://ollama.com/library/qwen2.5:1.5b), Apache 2.0, approximately 986 MB |
-| Quality | Pytest, HTTPX, and Ruff |
+| Infrastructure | Terraform (1.16.5); Docker provider (4.6.0) |
+| Container runtime | Docker Engine (host-installed; version not pinned) |
+| Platform API | Python (3.14); FastAPI (0.142.2); Pydantic (2.13.5); Uvicorn (0.54.0) |
+| Model runtime | Ollama (0.35.1) `ollama/ollama:0.35.1` container image |
+| Default model | [`llama3.1:8b`](https://ollama.com/library/llama3.1) |
+| Quality | HTTPX (0.28.1); Pytest (9.1.1); Ruff (0.16.10) |
 
 The API exposes health, model-listing, and non-streaming chat endpoints. It
 validates requests and normalizes responses; Ollama-specific HTTP details stay
@@ -31,33 +31,16 @@ The initial CPU-only validation target is an x86-64 host with 8 GiB of RAM and
 at least 10 GiB of free disk. This is a target profile, not a verified minimum;
 record the tested host and measured resource use before claiming support.
 
-## Run the API Locally
-
-Use Python 3.14 only. From the repository root, install dependencies and run the
-service in PowerShell:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev]"
-$env:OLLAMA_BASE_URL = "http://ollama:11434"
-python -m app.run
-```
-
-This development setup expects Ollama to be reachable from the host and binds
-the API to `127.0.0.1`. The container default instead uses
-`http://ollama:11434` over the internal Docker network. `.env.example` lists
-configuration variables but is not loaded automatically.
-
-The API provides `GET /` for an HTML page with the current API version,
-`GET /health`, `GET /api/v1/models`, and `POST /api/v1/chat`. Interactive
-OpenAPI documentation is available at
-`http://127.0.0.1:8000/docs`. The request schema and error contract are described
-in [`docs/project-scope.md`](docs/project-scope.md).
+The API is intended to run as part of the Terraform-managed Docker environment;
+it uses `http://ollama:11434` to reach Ollama on the private Docker network.
+This project does not support connecting the API to a host-local Ollama server.
+After deployment, the API provides `GET /`, `GET /health`,
+`GET /api/v1/models`, and `POST /api/v1/chat` on `127.0.0.1:8000`. Interactive
+OpenAPI documentation is available at `http://127.0.0.1:8000/docs`.
 
 ## Tests and API Image
 
-Run unit tests and Ruff checks from the repository root:
+Use Python 3.14 to run unit tests and Ruff checks from the repository root:
 
 ```powershell
 python -m pytest tests/unit
@@ -65,33 +48,16 @@ python -m ruff check .
 python -m ruff format --check .
 ```
 
-Integration tests require an Ollama service and an installed model. They remain
-opt-in; configure the endpoint, model, and timeout in PowerShell, then run the
-integration marker:
-
-```powershell
-$env:RUN_OLLAMA_INTEGRATION = "1"
-$env:OLLAMA_BASE_URL = "http://127.0.0.1:11434"
-$env:OLLAMA_INTEGRATION_MODEL = "qwen2.5:1.5b"
-$env:OLLAMA_INTEGRATION_TIMEOUT_SECONDS = "180"
-python -m pytest -m integration
-```
-
-`OLLAMA_INTEGRATION_MODEL` falls back to `DEFAULT_MODEL`, then `qwen2.5:1.5b`.
-The endpoint defaults to localhost; the timeout falls back to
-`REQUEST_TIMEOUT_SECONDS`, then 120 seconds. Use only synthetic prompts and a
-trusted Ollama endpoint.
-
 Build the API container image from the repository root:
 
 ```powershell
 docker build -f platform/Dockerfile -t local-ai-platform-api:1.0.0 .
 ```
 
-## Provision the Local Platform
+## Deploy the Docker Platform
 
-With Terraform 1.16.5 and Docker Engine available, run these commands from the
-repository root. Review the plan before applying it:
+With Terraform 1.16.5, Docker provider 4.6.0, and Docker Engine available, run
+these commands from the repository root. Review the plan before applying it:
 
 ```powershell
 terraform -chdir=infra/terraform init
@@ -106,7 +72,27 @@ available only on the internal Docker network. After apply, prepare the
 reference model explicitly:
 
 ```powershell
-docker exec ollama ollama pull qwen2.5:1.5b
+docker exec ollama ollama pull llama3.1:8b
+```
+
+Verify the API health and model-listing endpoints after the model is ready:
+
+```powershell
+curl.exe http://127.0.0.1:8000/health
+curl.exe http://127.0.0.1:8000/api/v1/models
+```
+
+Send a synthetic chat request to verify model generation:
+
+```powershell
+$body = @{
+    messages = @(@{ role = "user"; content = "Reply with a short greeting." })
+    options = @{ temperature = 0 }
+} | ConvertTo-Json -Depth 5
+Invoke-RestMethod -Method Post `
+    -Uri "http://127.0.0.1:8000/api/v1/chat" `
+    -ContentType "application/json" `
+    -Body $body
 ```
 
 Routine `terraform destroy` preserves the Ollama model volume. The explicit
@@ -150,7 +136,6 @@ AI-Platform-Foundation-Local/
 ├── scripts/
 │   └── README.md
 └── tests/
-    ├── integration/
     ├── unit/
     ├── __init__.py
     └── helpers.py
@@ -158,15 +143,6 @@ AI-Platform-Foundation-Local/
 
 Terraform is the primary provisioning mechanism. Docker Compose, if added, is a
 developer convenience and must not manage resources already owned by Terraform.
-
-## Testing and Quality
-
-- Run unit tests with Pytest.
-- Run Docker-based integration tests against a real Ollama service.
-- Use HTTPX for API tests and Ruff for linting and formatting.
-- Run `terraform fmt -check`, `terraform validate`, and review a Terraform plan.
-- Test request validation, runtime errors/timeouts, model listing, and chat
-  generation with the pinned reference model.
 
 ## Security and Data
 

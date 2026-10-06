@@ -1,6 +1,6 @@
 api_host_port           = 8000
 api_image_name          = "local-ai-platform-api:1.0.0"
-default_model           = "qwen2.5:1.5b"
+default_model           = "llama3.1:8b"
 log_level               = "INFO"
 ollama_image            = "ollama/ollama:0.35.1"
 ollama_volume_name      = "local-ai-platform-ollama-models"
