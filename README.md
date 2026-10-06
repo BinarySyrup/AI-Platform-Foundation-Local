@@ -38,6 +38,41 @@ After deployment, the API provides `GET /`, `GET /health`,
 `GET /api/v1/models`, and `POST /api/v1/chat` on `127.0.0.1:8000`. Interactive
 OpenAPI documentation is available at `http://127.0.0.1:8000/docs`.
 
+## Local Environment Setup
+
+The API and Ollama run as Docker containers; a host Ollama installation is not
+required or supported. The commands in this README use Windows PowerShell.
+
+Required host tools:
+
+- Docker Desktop configured for Linux containers, with the Docker Engine
+  running. See the [official Windows installation guide](https://docs.docker.com/desktop/setup/install/windows-install/).
+- Terraform CLI 1.16.5 on `PATH`. Follow the
+  [official HashiCorp install instructions](https://developer.hashicorp.com/terraform/install)
+  and select version 1.16.5.
+- Python 3.14 and pip for unit tests and linting only. Use the
+  [official Python for Windows downloads](https://www.python.org/downloads/windows/).
+- Git, if you need to clone the repository.
+
+Open a new PowerShell window after installation, then verify the tools:
+
+```powershell
+docker version
+terraform version
+python --version
+```
+
+The Terraform provider is installed by `terraform init`. The API's FastAPI and
+runtime dependencies are installed in its Docker image; they do not need a
+separate host installation. To install the pinned local test and lint tools,
+create a Python virtual environment from the repository root:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+```
+
 ## Tests and API Image
 
 Use Python 3.14 to run unit tests and Ruff checks from the repository root:
