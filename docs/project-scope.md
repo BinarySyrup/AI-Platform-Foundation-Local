@@ -193,20 +193,6 @@ GET /
 **Purpose:** Return a simple HTML landing page showing the current API version.
 The displayed version comes from FastAPI's application version metadata.
 
-```html
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <title>AI Platform Foundation - API</title>
-</head>
-<body>
-<h1>AI Platform Foundation - API</h1>
-<p>API Version: 1.0.0</p>
-</body>
-</html>
-```
-
 ### 7.2 Health
 
 ```http
