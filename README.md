@@ -28,16 +28,15 @@ publishes the API on loopback, and retains Ollama model data across routine
 teardown. Review the Terraform plan before applying it.
 
 The initial CPU-only validation target is an x86-64 host with 8 GiB of RAM and
-at least 10 GiB of free disk. This is a target profile, not a verified minimum;
-record the tested host and measured resource use before claiming support.
+at least 10 GiB of free disk. This is a target profile, not a verified minimum.
 
 The API is intended to run as part of the Terraform-managed Docker environment;
 it uses `http://ollama:11434` to reach Ollama on the private Docker network.
 This project does not support connecting the API to a host-local Ollama server.
 After deployment, the API provides `GET /`, `GET /health`,
-`GET /api/v1/models`, and `POST /api/v1/chat` on `127.0.0.1:8000`. Interactive
+`GET /api/v1/models`, and `POST /api/v1/chat` on `127.0.0.1:8000`. 
 
-Swagger UI is available at `http://127.0.0.1:8000/docs`; use **Try it out** to
+Interactive Swagger UI is available at `http://127.0.0.1:8000/docs`; use **Try it out** to
 submit requests from the browser. The OpenAPI schema is at
 `http://127.0.0.1:8000/openapi.json`, and ReDoc is available at
 `http://127.0.0.1:8000/redoc`.
