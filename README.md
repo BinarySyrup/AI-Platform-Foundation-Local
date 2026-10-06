@@ -36,7 +36,11 @@ it uses `http://ollama:11434` to reach Ollama on the private Docker network.
 This project does not support connecting the API to a host-local Ollama server.
 After deployment, the API provides `GET /`, `GET /health`,
 `GET /api/v1/models`, and `POST /api/v1/chat` on `127.0.0.1:8000`. Interactive
-OpenAPI documentation is available at `http://127.0.0.1:8000/docs`.
+
+Swagger UI is available at `http://127.0.0.1:8000/docs`; use **Try it out** to
+submit requests from the browser. The OpenAPI schema is at
+`http://127.0.0.1:8000/openapi.json`, and ReDoc is available at
+`http://127.0.0.1:8000/redoc`.
 
 ## Local Environment Setup
 
@@ -117,18 +121,7 @@ curl.exe http://127.0.0.1:8000/health
 curl.exe http://127.0.0.1:8000/api/v1/models
 ```
 
-Send a synthetic chat request to verify model generation:
-
-```powershell
-$body = @{
-    messages = @(@{ role = "user"; content = "Reply with a short greeting." })
-    options = @{ temperature = 0 }
-} | ConvertTo-Json -Depth 5
-Invoke-RestMethod -Method Post `
-    -Uri "http://127.0.0.1:8000/api/v1/chat" `
-    -ContentType "application/json" `
-    -Body $body
-```
+Swagger UI is available at `http://127.0.0.1:8000/docs`.
 
 Routine `terraform destroy` preserves the Ollama model volume. The explicit
 volume deletion procedure is documented in [`infra/terraform/README.md`](infra/terraform/README.md).

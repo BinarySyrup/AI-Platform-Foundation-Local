@@ -66,6 +66,33 @@ def test_root_page_displays_current_api_version() -> None:
     )
 
 
+def test_swagger_ui_and_openapi_schema_are_available() -> None:
+    app = make_app(FakeRuntime())
+
+    docs_response = send_request(app, "GET", "/docs")
+    schema_response = send_request(app, "GET", "/openapi.json")
+
+    assert docs_response.status_code == 200
+    assert "swagger-ui" in docs_response.text.lower()
+    assert schema_response.status_code == 200
+    assert schema_response.json()["paths"]["/api/v1/chat"]["post"]["summary"] == (
+        "Generate a chat response"
+    )
+    chat_examples = schema_response.json()["paths"]["/api/v1/chat"]["post"][
+        "requestBody"
+    ]["content"]["application/json"]["examples"]
+    assert chat_examples["infrastructure-as-code"]["value"] == {
+        "model": "llama3.1:8b",
+        "messages": [
+            {
+                "role": "user",
+                "content": "Explain infrastructure as code.",
+            }
+        ],
+        "options": {"temperature": 0},
+    }
+
+
 def test_health_is_liveness_only_and_returns_request_id() -> None:
     runtime = FakeRuntime()
     response = send_request(make_app(runtime), "GET", "/health")

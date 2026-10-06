@@ -1,7 +1,7 @@
 from html import escape
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Body, Depends, Request, status
 from fastapi.responses import HTMLResponse
 
 from app.api.dependencies import get_runtime, get_settings
@@ -18,7 +18,13 @@ from app.settings import Settings
 router = APIRouter()
 
 
-@router.get("/", response_class=HTMLResponse, tags=["root"])
+@router.get(
+    "/",
+    response_class=HTMLResponse,
+    tags=["root"],
+    summary="Show API version",
+    description="Returns an HTML landing page with the current API version.",
+)
 async def root(request: Request) -> HTMLResponse:
     build_version = escape(request.app.version)
     return HTMLResponse(
@@ -27,7 +33,13 @@ async def root(request: Request) -> HTMLResponse:
     )
 
 
-@router.get("/health", response_model=HealthResponse, tags=["health"])
+@router.get(
+    "/health",
+    response_model=HealthResponse,
+    tags=["health"],
+    summary="Check API liveness",
+    description="Reports API liveness without contacting the model runtime.",
+)
 async def health() -> HealthResponse:
     return HealthResponse(status="ok")
 
@@ -37,6 +49,8 @@ async def health() -> HealthResponse:
     response_model=ModelListResponse,
     responses={503: {"model": ErrorResponse}, 502: {"model": ErrorResponse}},
     tags=["models"],
+    summary="List available models",
+    description="Returns model names available from the configured Ollama runtime.",
 )
 async def list_models(
     runtime: Annotated[RuntimeClient, Depends(get_runtime)],
@@ -56,9 +70,33 @@ async def list_models(
         504: {"model": ErrorResponse},
     },
     tags=["chat"],
+    summary="Generate a chat response",
+    description=(
+        "Sends a non-streaming chat request. If `model` is omitted, the API's "
+        "configured default model is used."
+    ),
 )
 async def chat(
-    body: ChatRequest,
+    body: Annotated[
+        ChatRequest,
+        Body(
+            openapi_examples={
+                "infrastructure-as-code": {
+                    "summary": "Explain infrastructure as code",
+                    "value": {
+                        "model": "llama3.1:8b",
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": "Explain infrastructure as code.",
+                            }
+                        ],
+                        "options": {"temperature": 0},
+                    },
+                }
+            }
+        ),
+    ],
     runtime: Annotated[RuntimeClient, Depends(get_runtime)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> ChatResponse:

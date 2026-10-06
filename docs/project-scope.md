@@ -18,6 +18,7 @@ The MVP will:
 - Run platform components in Docker containers.
 - Host locally executable, open-source language models through Ollama.
 - Expose a versioned platform API using Python and FastAPI.
+- Provide interactive Swagger UI for API documentation and request execution.
 - Maintain a clear boundary between the platform API and the model runtime.
 - Provide repeatable setup, operation, and teardown workflows.
 - Persist downloaded model artifacts independently of container lifecycle.
@@ -36,6 +37,7 @@ The MVP includes:
 - Containerized FastAPI and Ollama services.
 - Persistent storage for Ollama model artifacts.
 - Health, model-listing, and non-streaming chat endpoints.
+- Swagger UI at `/docs`, generated OpenAPI at `/openapi.json`, and ReDoc at `/redoc`.
 - Request validation and normalized API responses.
 - Runtime error handling and configurable request timeouts.
 - Basic request logging and correlation identifiers.
@@ -49,7 +51,7 @@ The MVP excludes:
 
 - Cloud deployment.
 - Kubernetes.
-- A web frontend.
+- A custom product web frontend beyond the API documentation UI.
 - User authentication and multi-user access control.
 - Retrieval-augmented generation.
 - Vector databases.
@@ -243,7 +245,7 @@ Conceptual request:
     }
   ],
   "options": {
-    "temperature": 0.2
+    "temperature": 0
   }
 }
 ```
@@ -280,6 +282,15 @@ Expected error scenarios include:
 - An unreachable model runtime.
 - An inference request exceeding the configured timeout.
 - An unexpected runtime failure.
+
+### 7.5 Interactive API Documentation
+
+Swagger UI must be available at `/docs`, backed by the generated OpenAPI
+specification at `/openapi.json`. ReDoc is available at `/redoc`. Users can
+inspect the API operations and submit requests through Swagger UI's **Try it
+out** controls. Include a `POST /api/v1/chat` example using the default model,
+one user message, and temperature `0`. This API documentation UI is in scope;
+a separate product frontend is not.
 
 ## 8. Configuration
 
@@ -496,7 +507,7 @@ The MVP will deliver:
 2. A containerized FastAPI application.
 3. An isolated Ollama integration layer.
 4. Persistent model storage with documented retention and deletion behavior.
-5. Health, model-listing, and chat endpoints.
+5. Health, model-listing, and chat endpoints, with interactive Swagger UI.
 6. Unit test suite and documented Docker deployment checks.
 7. Configuration examples and repeatable deployment commands.
 8. Setup, operation, verification, and teardown documentation.
@@ -514,6 +525,8 @@ The MVP is complete when:
 - [ ] The models endpoint lists the canonical `llama3.1:8b` model.
 - [ ] The resolved reference-model digest is recorded in setup documentation.
 - [ ] The chat endpoint generates a response from the canonical model.
+- [ ] Swagger UI is available at `/docs` with the chat example and supports
+      interactive API requests.
 - [ ] Invalid requests and runtime failures produce documented API errors.
 - [ ] Model data persists across container restarts and routine re-provisioning.
 - [ ] Routine service teardown preserves model artifacts.

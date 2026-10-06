@@ -78,6 +78,15 @@ def create_app(
         title="Local AI Platform API",
         description="A local API for model discovery and non-streaming chat.",
         version="1.0.0",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
+        openapi_tags=[
+            {"name": "root", "description": "API landing page and version."},
+            {"name": "health", "description": "API liveness checks."},
+            {"name": "models", "description": "Models available in Ollama."},
+            {"name": "chat", "description": "Non-streaming chat completion."},
+        ],
         lifespan=lifespan,
     )
     application.state.settings = app_settings
