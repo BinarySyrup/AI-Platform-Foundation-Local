@@ -77,7 +77,7 @@ def create_app(
     application = FastAPI(
         title="Local AI Platform API",
         description="A local API for model discovery and non-streaming chat.",
-        version="1.0.0beta",
+        version="1.0.0",
         lifespan=lifespan,
     )
     application.state.settings = app_settings

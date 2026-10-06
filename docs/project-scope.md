@@ -194,7 +194,7 @@ GET /
 The displayed version comes from FastAPI's application version metadata.
 
 ```html
-<html><body><h1>AI Platform Foundation - API</h1><div>API Version:1.0.0beta</div></body></html>
+<html><body><h1>AI Platform Foundation - API</h1><div>API Version:1.0.0</div></body></html>
 ```
 
 ### 7.2 Health
