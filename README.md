@@ -102,27 +102,45 @@ volume deletion procedure is documented in [`infra/terraform/README.md`](infra/t
 ## Repository Layout
 
 ```text
+AI-Platform-Foundation-Local/
+├── .dockerignore
+├── .env.example
+├── .gitignore
 ├── AGENTS.md
 ├── CHANGELOG.md
-├── README.md
 ├── LICENSE
-├── Makefile
 ├── pyproject.toml
-├── .env.example
-├── platform/
-│   ├── Dockerfile
-│   └── app/
-├── tests/
-│   ├── unit/
-│   └── integration/
+├── README.md
+├── docs/
+│   ├── architecture.md
+│   └── project-scope.md
 ├── infra/
 │   └── terraform/
+│       ├── .terraform.lock.hcl
+│       ├── README.md
+│       ├── main.tf
+│       ├── outputs.tf
+│       ├── terraform.tfvars.example
+│       ├── variables.tf
+│       └── versions.tf
+├── platform/
+│   ├── Dockerfile
+│   ├── README.md
+│   └── app/
+│       ├── api/
+│       ├── clients/
+│       ├── models/
+│       ├── __init__.py
+│       ├── main.py
+│       ├── run.py
+│       └── settings.py
 ├── scripts/
-└── docs/
-    ├── project-scope.md
-    ├── architecture.md
-    ├── getting-started.md
-    └── decisions/
+│   └── README.md
+└── tests/
+    ├── integration/
+    ├── unit/
+    ├── __init__.py
+    └── helpers.py
 ```
 
 Terraform is the primary provisioning mechanism. Docker Compose, if added, is a

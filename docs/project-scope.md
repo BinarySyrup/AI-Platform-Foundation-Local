@@ -194,7 +194,17 @@ GET /
 The displayed version comes from FastAPI's application version metadata.
 
 ```html
-<html><body><h1>AI Platform Foundation - API</h1><div>API Version:1.0.0</div></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>AI Platform Foundation - API</title>
+</head>
+<body>
+<h1>AI Platform Foundation - API</h1>
+<p>API Version: 1.0.0</p>
+</body>
+</html>
 ```
 
 ### 7.2 Health
@@ -348,47 +358,44 @@ Inference latency and supported model size depend on available CPU, memory, stor
 
 ```text
 AI-Platform-Foundation-Local/
+├── .dockerignore
+├── .env.example
 ├── AGENTS.md
 ├── CHANGELOG.md
 ├── README.md
 ├── LICENSE
-├── Makefile
 ├── pyproject.toml
 ├── .gitignore
-├── .env.example
-├── docker-compose.yml          # Optional developer convenience
-│
+├── docs/
+│   ├── architecture.md
+│   └── project-scope.md
+├── infra/
+│   └── terraform/
+│       ├── .terraform.lock.hcl
+│       ├── README.md
+│       ├── main.tf
+│       ├── outputs.tf
+│       ├── terraform.tfvars.example
+│       ├── variables.tf
+│       └── versions.tf
 ├── platform/
-│   ├── README.md
 │   ├── Dockerfile
+│   ├── README.md
 │   └── app/
-│       ├── main.py
 │       ├── api/
 │       ├── clients/
 │       ├── models/
-│       ├── services/
+│       ├── __init__.py
+│       ├── main.py
+│       ├── run.py
 │       └── settings.py
-│
-├── tests/
-│   ├── unit/
-│   └── integration/
-│
-├── infra/
-│   └── terraform/
-│       ├── README.md
-│       ├── main.tf
-│       ├── variables.tf
-│       ├── outputs.tf
-│       ├── versions.tf
-│       └── terraform.tfvars.example
-│
 ├── scripts/
 │   └── README.md
-└── docs/
-    ├── project-scope.md
-    ├── architecture.md
-    ├── getting-started.md
-    └── decisions/
+└── tests/
+    ├── integration/
+    ├── unit/
+    ├── __init__.py
+    └── helpers.py
 ```
 
 Terraform remains the primary provisioning mechanism. If Docker Compose is included, its purpose and resource ownership must be documented to avoid conflicting management of the same containers, networks, or volumes.
