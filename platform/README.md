@@ -19,8 +19,8 @@ a host process connected to a local Ollama server. It reaches Ollama at
 - `POST /api/v1/chat` accepts 1–100 non-blank messages with `system`, `user`, or
   `assistant` roles. `model` is optional and defaults to `DEFAULT_MODEL`;
   `options.temperature` is optional and must be between 0 and 2.
-- Interactive OpenAPI documentation is available at `/docs` while the service
-  is running.
+- Swagger UI is available at `/docs`; use **Try it out** to submit API requests.
+- The OpenAPI schema is available at `/openapi.json`, with ReDoc at `/redoc`.
 
 Errors use a stable JSON envelope and a request ID. The API logs request method,
 path, status, duration, and request ID; it does not log prompt or response
