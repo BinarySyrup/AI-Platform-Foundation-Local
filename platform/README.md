@@ -56,7 +56,7 @@ For a standalone development build, create the API image from the repository
 root. Terraform builds it automatically during apply:
 
 ```powershell
-docker build -f platform/Dockerfile -t local-ai-platform-api:0.1.0 .
+docker build -f platform/Dockerfile -t local-ai-platform-api:beta.1.0.0 .
 ```
 
 The image listens on port 8000 inside its container. Publish the host port on

@@ -12,7 +12,7 @@ variable "api_host_port" {
 variable "api_image_name" {
   description = "Tag assigned to the locally built platform API image."
   type        = string
-  default     = "local-ai-platform-api:0.1.0"
+  default     = "local-ai-platform-api:beta.1.0.0"
 }
 
 variable "default_model" {

@@ -72,7 +72,7 @@ run `python -m pytest -m integration`.
 Build the API container image from the repository root:
 
 ```powershell
-docker build -f platform/Dockerfile -t local-ai-platform-api:0.1.0 .
+docker build -f platform/Dockerfile -t local-ai-platform-api:beta.1.0.0 .
 ```
 
 ## Provision the Local Platform

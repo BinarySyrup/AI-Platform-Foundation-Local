@@ -4,6 +4,8 @@ Notable project changes are documented here.
 
 ## [Unreleased]
 
+## [beta.1.0.0] - 2026-10-06
+
 ### Added
 
 - Defined the local AI platform MVP around Terraform, Docker, FastAPI, and Ollama.
