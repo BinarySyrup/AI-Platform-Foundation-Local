@@ -14,14 +14,17 @@ Detailed architecture is here: [architecture.md](docs/architecture.md)
 
 ## Tech Stack
 
-| Area | Frameworks |
-| --- | --- |
-| Infrastructure | Terraform (1.16.5); Docker provider (4.6.0) |
-| Container runtime | Docker Engine (host-installed; version not pinned) |
-| Platform API | Python (3.14); FastAPI (0.142.2); Pydantic (2.13.5); Uvicorn (0.54.0) |
-| Model runtime | Ollama (0.35.1) `ollama/ollama:0.35.1` container image |
-| Default model | [`llama3.1:8b`](https://ollama.com/library/llama3.1) |
-| Quality | HTTPX (0.28.1); Pytest (9.1.1); Ruff (0.16.10) |
+| Area | Technologies | Purpose |
+| --- | --- | --- |
+| Infrastructure | Terraform 1.17.0; Docker provider 4.6.0 | Define and provision local infrastructure |
+| Container runtime | Docker Engine | Run the platform services |
+| Networking and storage | Docker network and volume | Connect services privately and persist model files |
+| Platform API | Python 3.14; FastAPI 0.162.0; Pydantic 2.14.1; Pydantic Settings 2.16.1; Uvicorn 0.54.0 | Expose and validate the platform API |
+| Runtime integration | HTTPX 0.28.1 | Communicate with Ollama over HTTP |
+| Model runtime | Ollama `ollama/ollama:0.35.1` | Manage model files and run local inference |
+| Default model | [`llama3.1:8b`](https://ollama.com/library/llama3.1) | Reference model for setup and deployment checks |
+| Testing | Pytest 9.2.0; HTTPX test client | Validate API behavior and Docker connectivity |
+| Code quality | Ruff 0.17.3 | Lint and format Python code |
 
 The API exposes health, model-listing, and non-streaming chat endpoints. It
 validates requests and normalizes responses; Ollama-specific HTTP details stay
@@ -58,9 +61,9 @@ Required host tools:
 
 - Docker Desktop configured for Linux containers, with the Docker Engine
   running. See the [official Windows installation guide](https://docs.docker.com/desktop/setup/install/windows-install/).
-- Terraform CLI 1.16.5 on `PATH`. Follow the
+- Terraform CLI 1.17.0 on `PATH`. Follow the
   [official HashiCorp install instructions](https://developer.hashicorp.com/terraform/install)
-  and select version 1.16.5.
+  and select version 1.17.0.
 - Python 3.14 and pip for unit tests and linting only. Use the
   [official Python for Windows downloads](https://www.python.org/downloads/windows/).
 - Git, if you need to clone the repository.
@@ -102,7 +105,7 @@ docker build -f platform/Dockerfile -t local-ai-platform-api:1.1.0 .
 
 ## Deploy the Docker Platform
 
-With Terraform 1.16.5, Docker provider 4.6.0, and Docker Engine available, run
+With Terraform 1.17.0, Docker provider 4.6.0, and Docker Engine available, run
 these commands from the repository root. Review the plan before applying it:
 
 ```powershell
