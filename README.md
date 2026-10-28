@@ -4,14 +4,6 @@ A local-first AI platform MVP built with Terraform, Docker, FastAPI, and Ollama.
 The project demonstrates repeatable infrastructure provisioning and a stable
 API boundary around locally hosted language models.
 
-## Architecture
-
-![architecture-v1.png](docs/images/architecture-v1.png)
-
-The static diagram shows the architecture of this application, which includes the API runtime, validation and settings, and Ollama runtime.
-
-Detailed architecture is here: [architecture.md](docs/architecture.md)
-
 ## Tech Stack
 
 | Area | Frameworks |
@@ -97,7 +89,7 @@ python -m ruff format --check .
 Build the API container image from the repository root:
 
 ```powershell
-docker build -f platform/Dockerfile -t local-ai-platform-api:1.1.0 .
+docker build -f platform/Dockerfile -t local-ai-platform-api:1.0.0 .
 ```
 
 ## Deploy the Docker Platform
@@ -115,13 +107,10 @@ terraform -chdir=infra/terraform apply
 
 Terraform builds the API image and publishes it on `127.0.0.1:8000`. Ollama is
 available only on the internal Docker network. After apply, prepare the
-model you want the API to use. The repository default is `llama3.1:8b`; if you
-use another model, set Terraform's `default_model` to that tag and apply the
-reviewed change, or include the tag in each chat request. For example, to use
-Qwen:
+reference model explicitly:
 
 ```powershell
-docker exec ollama ollama pull qwen2.5:1.5b
+docker exec ollama ollama pull llama3.1:8b
 ```
 
 Verify the API health and model-listing endpoints after the model is ready:
@@ -131,67 +120,56 @@ curl.exe http://127.0.0.1:8000/health
 curl.exe http://127.0.0.1:8000/api/v1/models
 ```
 
-## Verify and Debug Deployment
-
-A successful `terraform apply` ends with `Apply complete!` and prints the
-`api_url` output. Check Terraform's outputs and managed resources, then confirm
-that both containers are running:
-
-```powershell
-terraform -chdir=infra/terraform output
-terraform -chdir=infra/terraform state list
-docker ps --filter "name=local-ai-platform-api" --filter "name=ollama" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-```
-
-The state should include the API and Ollama containers and the platform
-network. `docker ps` should show `local-ai-platform-api` and `ollama` as
-running; only the API should publish port `8000`, bound to `127.0.0.1`.
-Terraform output `api_url` should be `http://127.0.0.1:8000` unless
-`api_host_port` was overridden.
-
-If a container is missing, stopped, or unhealthy, inspect its status and recent
-logs:
-
-```powershell
-docker inspect --format "{{.Name}}: {{.State.Status}}{{if .State.Health}} (health: {{.State.Health.Status}}){{end}}" local-ai-platform-api ollama
-docker logs --tail 100 local-ai-platform-api
-docker logs --tail 100 ollama
-```
-
-Check the API container's configured default, the models installed in Ollama,
-and the models visible through the API:
-
-```powershell
-docker inspect --format "{{range .Config.Env}}{{println .}}{{end}}" local-ai-platform-api | Select-String "^DEFAULT_MODEL="
-docker exec ollama ollama list
-curl.exe http://127.0.0.1:8000/health
-curl.exe http://127.0.0.1:8000/api/v1/models
-```
-
-`/health` checks API liveness only. If `/api/v1/models` returns an empty list,
-Ollama has no model installed. Pull the tag shown by `DEFAULT_MODEL` (the
-repository default is `llama3.1:8b`; replace it below if you overrode that
-value) and check the list again. If `ollama list` shows a model but the API list
-is empty, inspect the container logs above. A chat request's `model` must match
-a name returned by `/api/v1/models`:
-
-```powershell
-docker exec ollama ollama pull llama3.1:8b
-curl.exe http://127.0.0.1:8000/api/v1/models
-```
-
-If Terraform did not finish successfully or expected resources are missing,
-review the current plan before applying again:
-
-```powershell
-terraform -chdir=infra/terraform plan
-```
-
 Swagger UI is available at `http://127.0.0.1:8000/docs`.
 
-Routine `terraform destroy` removes Terraform-managed images and preserves the
-Ollama model volume. Cleanup details and explicit volume deletion steps are in
-[`infra/terraform/README.md`](infra/terraform/README.md).
+Routine `terraform destroy` preserves the Ollama model volume. The explicit
+volume deletion procedure is documented in [`infra/terraform/README.md`](infra/terraform/README.md).
+
+## Repository Layout
+
+```text
+AI-Platform-Foundation-Local/
+├── .dockerignore
+├── .env.example
+├── .gitignore
+├── AGENTS.md
+├── CHANGELOG.md
+├── LICENSE
+├── pyproject.toml
+├── README.md
+├── docs/
+│   ├── architecture.md
+│   └── project-scope.md
+├── infra/
+│   └── terraform/
+│       ├── .terraform.lock.hcl
+│       ├── README.md
+│       ├── main.tf
+│       ├── outputs.tf
+│       ├── terraform.tfvars.example
+│       ├── variables.tf
+│       └── versions.tf
+├── platform/
+│   ├── Dockerfile
+│   ├── README.md
+│   └── app/
+│       ├── api/
+│       ├── clients/
+│       ├── models/
+│       ├── __init__.py
+│       ├── main.py
+│       ├── run.py
+│       └── settings.py
+├── scripts/
+│   └── README.md
+└── tests/
+    ├── unit/
+    ├── __init__.py
+    └── helpers.py
+```
+
+Terraform is the primary provisioning mechanism. Docker Compose, if added, is a
+developer convenience and must not manage resources already owned by Terraform.
 
 ## Security and Data
 
