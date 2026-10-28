@@ -72,7 +72,7 @@ Security-conscious architecture does not establish regulatory compliance. The MV
 
 | Area | Technologies | Purpose |
 |---|---|---|
-| Infrastructure | Terraform 1.16.5, Docker provider 4.6.0 | Define and provision local infrastructure |
+| Infrastructure | Terraform 1.17.0, Docker provider 4.6.0 | Define and provision local infrastructure |
 | Container runtime | Docker Engine | Run platform services |
 | Networking and storage | Docker networks and volumes | Provide internal connectivity and persistent model storage |
 | Platform API | Python 3.14, FastAPI, Pydantic, Uvicorn | Expose and validate the platform API |
@@ -406,7 +406,7 @@ Terraform remains the primary provisioning mechanism. If Docker Compose is inclu
 The setup documentation must identify:
 
 - Supported local environment.
-- Docker Engine, Terraform 1.16.5, Docker provider 4.6.0, and Python 3.14.
+- Docker Engine, Terraform 1.17.0, Docker provider 4.6.0, and Python 3.14.
 - Application image build steps.
 - The reference validation profile: CPU-only x86-64, 8 GiB RAM, and at least
   10 GiB free disk; record actual test results before treating it as verified.
