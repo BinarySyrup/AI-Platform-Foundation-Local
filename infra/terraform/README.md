@@ -56,8 +56,7 @@ bridge network and is not exposed to the host.
 
 ## Teardown and Retention
 
-Routine teardown removes the network, containers, and Terraform-managed Docker
-images. It retains model data in the Ollama volume:
+Routine teardown removes the network and containers but retains model data:
 
 ```powershell
 terraform -chdir=infra/terraform destroy
@@ -74,15 +73,3 @@ docker volume rm local-ai-platform-ollama-models
 ```
 
 Do not run that cleanup command unless permanent model deletion is intended.
-
-An image left by an earlier `terraform destroy` may remain in Docker because
-the previous configuration kept the Ollama image locally. After confirming no
-other container uses it, remove that cached image explicitly:
-
-```powershell
-docker image ls ollama/ollama:0.35.1
-docker image rm ollama/ollama:0.35.1
-```
-
-Do not use `--force`; Docker should refuse removal if a container still uses
-the image. Removing the image does not delete models stored in the volume.
