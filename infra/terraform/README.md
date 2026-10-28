@@ -1,6 +1,6 @@
 # Terraform Deployment
 
-This configuration uses Terraform 1.16.5 and the Docker provider 4.6.0 to build
+This configuration uses Terraform 1.17.0 and the Docker provider 4.6.0 to build
 the FastAPI image and manage a local Docker network, API container, Ollama
 container, and persistent model volume. Ollama uses the pinned
 `ollama/ollama:0.35.1` image and is not published on a host port. Only the API is
@@ -13,7 +13,7 @@ overrides; the copy is ignored by Git.
 
 ## Provision
 
-Prerequisites are Terraform 1.16.5 and a running Docker Engine. From the
+Prerequisites are Terraform 1.17.0 and a running Docker Engine. From the
 repository root, initialize and validate the configuration, then review the
 plan before applying it:
 
@@ -56,8 +56,7 @@ bridge network and is not exposed to the host.
 
 ## Teardown and Retention
 
-Routine teardown removes the network, containers, and Terraform-managed Docker
-images. It retains model data in the Ollama volume:
+Routine teardown removes the network and containers but retains model data:
 
 ```powershell
 terraform -chdir=infra/terraform destroy
@@ -74,15 +73,3 @@ docker volume rm local-ai-platform-ollama-models
 ```
 
 Do not run that cleanup command unless permanent model deletion is intended.
-
-An image left by an earlier `terraform destroy` may remain in Docker because
-the previous configuration kept the Ollama image locally. After confirming no
-other container uses it, remove that cached image explicitly:
-
-```powershell
-docker image ls ollama/ollama:0.35.1
-docker image rm ollama/ollama:0.35.1
-```
-
-Do not use `--force`; Docker should refuse removal if a container still uses
-the image. Removing the image does not delete models stored in the volume.
