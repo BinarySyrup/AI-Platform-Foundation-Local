@@ -33,7 +33,7 @@ resource "docker_image" "api" {
 
 resource "docker_image" "ollama" {
   name         = var.ollama_image
-  keep_locally = true
+  keep_locally = false
 }
 
 resource "docker_container" "ollama" {
