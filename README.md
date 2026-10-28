@@ -117,11 +117,11 @@ Terraform builds the API image and publishes it on `127.0.0.1:8000`. Ollama is
 available only on the internal Docker network. After apply, prepare the
 model you want the API to use. The repository default is `llama3.1:8b`; if you
 use another model, set Terraform's `default_model` to that tag and apply the
-reviewed change, or include the tag in each chat request. For example, to use
-Qwen:
+reviewed change, or include the tag in each chat request. Pull the default
+model with:
 
 ```powershell
-docker exec ollama ollama pull qwen2.5:1.5b
+docker exec ollama ollama pull llama3.1:8b
 ```
 
 Verify the API health and model-listing endpoints after the model is ready:
