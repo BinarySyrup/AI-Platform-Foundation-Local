@@ -57,8 +57,9 @@ flowchart TD
 
 ## Implementation Decisions
 
-Terraform 1.16.5 and Docker provider 4.6.0 manage the local services. The API
-image uses Python 3.14.8; Ollama uses the pinned `ollama/ollama:0.35.1` image.
+Terraform 1.17.0 and Docker provider 4.6.0 manage the local services. The API
+image uses Python 3.14.8 and defaults to the `llama3.1:8b` model; Ollama uses
+the pinned `ollama/ollama:0.35.1` image.
 The API port is published on loopback only, and Ollama remains on the internal
 Docker bridge network. Ollama mounts a named Docker volume whose lifecycle is
 outside Terraform resource management, so service teardown preserves model

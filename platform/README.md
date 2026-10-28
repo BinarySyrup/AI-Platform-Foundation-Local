@@ -17,7 +17,8 @@ a host process connected to a local Ollama server. It reaches Ollama at
 - `GET /health` reports API liveness without calling Ollama.
 - `GET /api/v1/models` returns model names only.
 - `POST /api/v1/chat` accepts 1–100 non-blank messages with `system`, `user`, or
-  `assistant` roles. `model` is optional and defaults to `DEFAULT_MODEL`;
+  `assistant` roles. `model` is optional and defaults to `DEFAULT_MODEL`, which
+  is `llama3.1:8b` in the standard deployment;
   `options.temperature` is optional and must be between 0 and 2.
 - Swagger UI is available at `/docs`; use **Try it out** to submit API requests.
 - The OpenAPI schema is available at `/openapi.json`, with ReDoc at `/redoc`.

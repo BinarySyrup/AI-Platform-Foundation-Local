@@ -16,12 +16,12 @@ Detailed architecture is here: [architecture.md](docs/architecture.md)
 
 | Area | Frameworks |
 | --- | --- |
-| Infrastructure | Terraform (1.16.5); Docker provider (4.6.0) |
+| Infrastructure | Terraform (1.17.0); Docker provider (4.6.0) |
 | Container runtime | Docker Engine (host-installed; version not pinned) |
-| Platform API | Python (3.14); FastAPI (0.142.2); Pydantic (2.13.5); Uvicorn (0.54.0) |
+| Platform API | Python (3.14); FastAPI (0.162.0); Pydantic (2.14.1); pydantic-settings (2.16.1); Uvicorn (0.54.0) |
 | Model runtime | Ollama (0.35.1) `ollama/ollama:0.35.1` container image |
 | Default model | [`llama3.1:8b`](https://ollama.com/library/llama3.1) |
-| Quality | HTTPX (0.28.1); Pytest (9.1.1); Ruff (0.16.10) |
+| Quality | HTTPX (0.28.1); Pytest (9.2.0); Ruff (0.17.3) |
 
 The API exposes health, model-listing, and non-streaming chat endpoints. It
 validates requests and normalizes responses; Ollama-specific HTTP details stay
@@ -58,9 +58,9 @@ Required host tools:
 
 - Docker Desktop configured for Linux containers, with the Docker Engine
   running. See the [official Windows installation guide](https://docs.docker.com/desktop/setup/install/windows-install/).
-- Terraform CLI 1.16.5 on `PATH`. Follow the
+- Terraform CLI 1.17.0 on `PATH`. Follow the
   [official HashiCorp install instructions](https://developer.hashicorp.com/terraform/install)
-  and select version 1.16.5.
+  and select version 1.17.0.
 - Python 3.14 and pip for unit tests and linting only. Use the
   [official Python for Windows downloads](https://www.python.org/downloads/windows/).
 - Git, if you need to clone the repository.
@@ -102,7 +102,7 @@ docker build -f platform/Dockerfile -t local-ai-platform-api:1.1.0 .
 
 ## Deploy the Docker Platform
 
-With Terraform 1.16.5, Docker provider 4.6.0, and Docker Engine available, run
+With Terraform 1.17.0, Docker provider 4.6.0, and Docker Engine available, run
 these commands from the repository root. Review the plan before applying it:
 
 ```powershell
@@ -114,14 +114,11 @@ terraform -chdir=infra/terraform apply
 ```
 
 Terraform builds the API image and publishes it on `127.0.0.1:8000`. Ollama is
-available only on the internal Docker network. After apply, prepare the
-model you want the API to use. The repository default is `llama3.1:8b`; if you
-use another model, set Terraform's `default_model` to that tag and apply the
-reviewed change, or include the tag in each chat request. For example, to use
-Qwen:
+available only on the internal Docker network. After apply, download the
+default model, `llama3.1:8b`:
 
 ```powershell
-docker exec ollama ollama pull qwen2.5:1.5b
+docker exec ollama ollama pull llama3.1:8b
 ```
 
 Verify the API health and model-listing endpoints after the model is ready:
