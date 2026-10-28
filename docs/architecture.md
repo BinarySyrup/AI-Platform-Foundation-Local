@@ -21,6 +21,40 @@ configuration, and safe defaults over production-scale complexity.
 The MVP does not include a UI, authentication, cloud deployment, or
 orchestration beyond Docker.
 
+## Infrastructure and Software Design
+
+The diagram shows the local Docker boundary, the chat request path, and the
+resources provisioned by Terraform. The model volume persists when Terraform
+destroys the containers.
+
+```mermaid
+flowchart TD
+    Client["Local API client"]
+    Terraform["Terraform + Docker provider"]
+
+    subgraph Docker["Local Docker Engine"]
+        direction TB
+        subgraph Network["Private Docker bridge network"]
+            direction TB
+            subgraph APIContainer["FastAPI container"]
+                direction TB
+                API["FastAPI platform API"]
+                Adapter["Ollama client adapter<br/>HTTPX"]
+                API -->|Validates and forwards requests| Adapter
+            end
+
+            Ollama["Ollama container<br/>ollama:11434"]
+            Adapter -->|HTTP over private network| Ollama
+        end
+
+        ModelVolume[("Persistent model volume<br/>/root/.ollama")]
+        Ollama -->|Reads and writes model files| ModelVolume
+    end
+
+    Client -->|HTTP published on 127.0.0.1:8000| API
+    Terraform -. "Provisions network, images, and containers" .-> Docker
+```
+
 ## Implementation Decisions
 
 Terraform 1.16.5 and Docker provider 4.6.0 manage the local services. The API
