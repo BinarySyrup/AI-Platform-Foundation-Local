@@ -18,6 +18,11 @@ resource "docker_network" "platform" {
   driver = "bridge"
 }
 
+resource "docker_network" "clients" {
+  name   = "${var.platform_network_name}-clients"
+  driver = "bridge"
+}
+
 resource "docker_image" "api" {
   name = var.api_image_name
 
@@ -34,6 +39,10 @@ resource "docker_image" "api" {
 resource "docker_image" "ollama" {
   name         = var.ollama_image
   keep_locally = false
+}
+
+resource "docker_image" "open_webui" {
+  name = var.open_webui_image
 }
 
 resource "docker_container" "ollama" {
@@ -79,6 +88,11 @@ resource "docker_container" "api" {
     aliases = ["api"]
   }
 
+  networks_advanced {
+    name    = docker_network.clients.name
+    aliases = ["api"]
+  }
+
   healthcheck {
     test         = ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
     interval     = "30s"
@@ -88,4 +102,38 @@ resource "docker_container" "api" {
   }
 
   depends_on = [docker_container.ollama]
+}
+
+resource "docker_container" "open_webui" {
+  name    = "local-ai-platform-open-webui"
+  image   = docker_image.open_webui.image_id
+  restart = "unless-stopped"
+
+  env = [
+    "ENABLE_OLLAMA_API=false",
+    "ENABLE_OPENAI_API=true",
+    "OPENAI_API_BASE_URLS=http://api:8000/v1",
+    "OPENAI_API_KEYS=local-development",
+    "WEBUI_AUTH=false",
+  ]
+
+  ports {
+    internal = 8080
+    external = var.open_webui_host_port
+    ip       = "127.0.0.1"
+    protocol = "tcp"
+  }
+
+  networks_advanced {
+    name    = docker_network.clients.name
+    aliases = ["open-webui"]
+  }
+
+  mounts {
+    type   = "volume"
+    source = var.open_webui_volume_name
+    target = "/app/backend/data"
+  }
+
+  depends_on = [docker_container.api]
 }

@@ -1,10 +1,12 @@
 # Terraform Deployment
 
-This configuration uses Terraform 1.16.5 and the Docker provider 4.6.0 to build
-the FastAPI image and manage a local Docker network, API container, Ollama
-container, and persistent model volume. Ollama uses the pinned
-`ollama/ollama:0.35.1` image and is not published on a host port. Only the API is
-published, bound to `127.0.0.1`.
+This configuration uses Terraform 1.17.0 and the Docker provider 4.6.0 to build
+the FastAPI image and manage Open WebUI, Ollama, two Docker networks, and
+persistent data volumes. Open WebUI uses the pinned
+`ghcr.io/open-webui/open-webui:v0.13.4` image. The API shares a client network
+with Open WebUI and a separate runtime network with Ollama, so the UI reaches
+the model through the API. The API and Open WebUI are published on loopback;
+Ollama has no host port.
 
 Terraform uses local state in this directory. State, provider data, plans, and
 environment-specific variable files are excluded from version control. Copy
@@ -13,7 +15,7 @@ overrides; the copy is ignored by Git.
 
 ## Provision
 
-Prerequisites are Terraform 1.16.5 and a running Docker Engine. From the
+Prerequisites are Terraform 1.17.0 and a running Docker Engine. From the
 repository root, initialize and validate the configuration, then review the
 plan before applying it:
 
@@ -27,8 +29,8 @@ terraform -chdir=infra/terraform apply
 
 Terraform builds the API image from `platform/Dockerfile`; `.dockerignore`
 excludes local configuration, Terraform state, model data, and development
-artifacts from the build context. The apply output `api_url` points to the
-loopback-only API endpoint.
+artifacts from the build context. The apply outputs `api_url` and
+`open_webui_url` point to the loopback-only services.
 
 ## Prepare and Verify Ollama
 
@@ -49,31 +51,46 @@ and available model list with:
 ```powershell
 curl.exe http://127.0.0.1:8000/health
 curl.exe http://127.0.0.1:8000/api/v1/models
+curl.exe http://127.0.0.1:8000/v1/models
 ```
+
+Open the chat interface at `http://127.0.0.1:3000`. It calls the API at
+`http://api:8000/v1` on the private client network. The placeholder API key in
+the Open WebUI configuration is ignored by the unauthenticated platform API;
+the services are safe to use only within the local loopback boundary.
 
 Ollama is reachable by the API at `http://ollama:11434` on the private Docker
 bridge network and is not exposed to the host.
 
 ## Teardown and Retention
 
-Routine teardown removes the network, containers, and Terraform-managed Docker
-images. It retains model data in the Ollama volume:
+Routine teardown removes the networks, containers, and Terraform-managed Docker
+images. It retains model data in the Ollama volume and chats/settings in the
+Open WebUI volume:
 
 ```powershell
 terraform -chdir=infra/terraform destroy
 ```
 
-The Ollama container mounts a named Docker volume that is not managed as a
-Terraform resource. Docker preserves volume data when the container is removed,
-and a later apply reuses the same volume name. To permanently remove models,
-first destroy the platform, confirm the volume name with `docker volume ls`,
-then explicitly delete the retained volume:
+Both containers mount named Docker volumes that are not managed as Terraform
+resources. Docker preserves their contents when containers are removed, and a
+later apply reuses the configured names. To permanently remove either set of
+data, first destroy the platform and confirm the relevant volume name with
+`docker volume ls`. To permanently remove model artifacts, use:
 
 ```powershell
 docker volume rm local-ai-platform-ollama-models
 ```
 
-Do not run that cleanup command unless permanent model deletion is intended.
+To permanently remove Open WebUI conversations and settings, use:
+
+```powershell
+docker volume rm local-ai-platform-open-webui-data
+```
+
+Run the Ollama command only when permanent model deletion is intended. Run the
+Open WebUI command only when permanent conversation and settings deletion is
+intended.
 
 An image left by an earlier `terraform destroy` may remain in Docker because
 the previous configuration kept the Ollama image locally. After confirming no

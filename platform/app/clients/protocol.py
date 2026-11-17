@@ -1,3 +1,4 @@
+from collections.abc import AsyncIterator
 from typing import Protocol
 
 from app.models.schemas import ChatMessage, ChatResponse, ModelSummary
@@ -13,3 +14,11 @@ class RuntimeClient(Protocol):
         messages: list[ChatMessage],
         temperature: float | None,
     ) -> ChatResponse: ...
+
+    def chat_stream(
+        self,
+        *,
+        model: str,
+        messages: list[ChatMessage],
+        temperature: float | None,
+    ) -> AsyncIterator[str]: ...

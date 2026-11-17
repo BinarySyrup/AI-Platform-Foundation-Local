@@ -4,7 +4,7 @@
 
 The Local AI Platform Foundation is a portfolio project demonstrating the provisioning and operation of a small, local AI platform using open-source technologies.
 
-The minimum viable product (MVP) uses Terraform to provision local Docker resources and a Python/FastAPI service to provide access to locally hosted language models through Ollama.
+The minimum viable product (MVP) uses Terraform to provision local Docker resources, Open WebUI as a chat client, and a Python/FastAPI service that provides the client-facing API to locally hosted language models through Ollama.
 
 The project prioritizes a clean, reproducible platform foundation over feature breadth. Capabilities such as retrieval-augmented generation (RAG), authentication, vector storage, advanced observability, and Kubernetes deployment are reserved for future phases.
 
@@ -18,6 +18,8 @@ The MVP will:
 - Run platform components in Docker containers.
 - Host locally executable, open-source language models through Ollama.
 - Expose a versioned platform API using Python and FastAPI.
+- Provide Open WebUI as a local chat client that uses the platform API.
+- Keep the platform API independently available to other clients.
 - Provide interactive Swagger UI for API documentation and request execution.
 - Maintain a clear boundary between the platform API and the model runtime.
 - Provide repeatable setup, operation, and teardown workflows.
@@ -33,10 +35,13 @@ The MVP will:
 The MVP includes:
 
 - Terraform-managed Docker infrastructure.
-- A Docker network for internal service communication.
-- Containerized FastAPI and Ollama services.
+- Separate Docker networks for client-to-API and API-to-runtime communication.
+- Containerized FastAPI, Ollama, and pinned Open WebUI services.
 - Persistent storage for Ollama model artifacts.
-- Health, model-listing, and non-streaming chat endpoints.
+- Persistent Open WebUI chat history and settings, separate from the stateless API.
+- Health, model-listing, and non-streaming platform chat endpoints.
+- OpenAI-compatible model-listing and streaming or non-streaming chat endpoints.
+- Open WebUI connected to the OpenAI-compatible API, with direct Ollama access disabled.
 - Swagger UI at `/docs`, generated OpenAPI at `/openapi.json`, and ReDoc at `/redoc`.
 - Request validation and normalized API responses.
 - Runtime error handling and configurable request timeouts.
@@ -51,14 +56,15 @@ The MVP excludes:
 
 - Cloud deployment.
 - Kubernetes.
-- A custom product web frontend beyond the API documentation UI.
+- A custom product web frontend; Open WebUI is the selected chat client.
 - User authentication and multi-user access control.
 - Retrieval-augmented generation.
 - Vector databases.
 - Document ingestion.
 - Agent workflows.
 - Model training or fine-tuning.
-- Conversation history and application data persistence.
+- Conversation history in FastAPI. Open WebUI stores its own conversations and
+  settings in a persistent Docker volume.
 - Production-grade high availability.
 - Healthcare data or protected health information (PHI).
 
@@ -72,10 +78,11 @@ Security-conscious architecture does not establish regulatory compliance. The MV
 
 | Area | Technologies | Purpose |
 |---|---|---|
-| Infrastructure | Terraform 1.16.5, Docker provider 4.6.0 | Define and provision local infrastructure |
+| Infrastructure | Terraform 1.17.0, Docker provider 4.6.0 | Define and provision local infrastructure |
 | Container runtime | Docker Engine | Run platform services |
 | Networking and storage | Docker networks and volumes | Provide internal connectivity and persistent model storage |
 | Platform API | Python 3.14, FastAPI, Pydantic, Uvicorn | Expose and validate the platform API |
+| Chat client | Open WebUI `v0.13.4` | Provide a local interface through the platform API |
 | Runtime integration | HTTPX | Communicate with Ollama over HTTP |
 | Model runtime | Ollama `ollama/ollama:0.35.1` | Manage model artifacts and execute local inference |
 | Testing | Pytest, HTTPX test client | Validate API behavior and verify connectivity through Docker deployment checks |
@@ -105,40 +112,28 @@ it as supported.
 
 ## 5. High-Level Architecture
 
-```text
-┌────────────────────────────┐
-│ API Client                 │
-│ curl / Python / tests      │
-└──────────────┬─────────────┘
-               │ HTTP
-               ▼
-┌────────────────────────────┐
-│ FastAPI Platform API       │
-│ Validation and API contract│
-└──────────────┬─────────────┘
-               │ Runtime adapter / HTTP
-               ▼
-┌────────────────────────────┐
-│ Ollama                     │
-│ Local model execution      │
-└──────────────┬─────────────┘
-               │
-               ▼
-┌────────────────────────────┐
-│ Persistent Docker Volume   │
-│ Local model artifacts      │
-└────────────────────────────┘
+```mermaid
+flowchart LR
+    UI["Open WebUI"] -->|OpenAI-compatible API over client network| API["FastAPI platform API"]
+    Client["Other API clients"] -->|Loopback HTTP| API
+    API -->|Ollama API over private runtime network| Ollama["Ollama"]
+    Ollama --> ModelVolume[("Persistent model artifacts")]
+    UI --> UIData[("Persistent chats and settings")]
+    Terraform -. "Provisions services, networks, and storage" .-> API
 ```
 
-Terraform provisions the Docker network, containers, port mappings, persistent storage, and infrastructure-level configuration.
+Terraform provisions the client and runtime Docker networks, containers, loopback port mappings, persistent storage, and infrastructure-level configuration.
 
 ### 5.1 Request Flow
 
-1. A client submits a request to the FastAPI service.
-2. FastAPI validates the request against the platform schema.
+1. Open WebUI or another client submits a request to FastAPI. Open WebUI uses
+   the OpenAI-compatible `/v1` endpoints; other clients can also use the
+   versioned `/api/v1` platform endpoints.
+2. FastAPI validates the request against the selected API schema.
 3. The runtime adapter translates the request into the Ollama contract.
 4. Ollama executes inference using an available local model.
-5. The adapter translates the runtime response into the platform response schema.
+5. The adapter translates the runtime response into the platform response
+   schema or streams generated text to FastAPI.
 6. FastAPI returns the response and records basic request metadata.
 
 Clients interact with the platform API rather than depending directly on Ollama-specific interfaces.
@@ -149,10 +144,10 @@ Clients interact with the platform API rather than depending directly on Ollama-
 
 Terraform is responsible for:
 
-- Creating the Docker network.
-- Provisioning the Ollama and FastAPI containers.
+- Creating separate client and runtime Docker networks.
+- Provisioning Open WebUI, Ollama, and FastAPI containers.
 - Assigning the Ollama container the stable name `ollama` for model preparation.
-- Provisioning persistent model storage.
+- Provisioning named volumes for model artifacts and Open WebUI data.
 - Configuring service connectivity and required port mappings.
 - Defining container restart behavior.
 - Applying infrastructure configuration through documented variables.
@@ -160,12 +155,15 @@ Terraform is responsible for:
 Terraform must not contain application logic or prompt-processing logic.
 
 The storage lifecycle must distinguish routine service teardown from explicit deletion of model artifacts.
+Routine teardown also preserves Open WebUI conversations and settings.
 
 ### 6.2 FastAPI Platform API
 
 The platform API is responsible for:
 
 - Exposing the external API contract.
+- Providing OpenAI-compatible model listing and streaming or non-streaming chat
+  completion routes for Open WebUI and other clients.
 - Validating incoming requests.
 - Routing inference requests through a runtime client or adapter.
 - Returning normalized responses.
@@ -173,7 +171,7 @@ The platform API is responsible for:
 - Providing health information.
 - Recording basic request logs and correlation identifiers.
 
-Ollama-specific payloads and transport details must remain within the runtime integration layer.
+Ollama-specific payloads and transport details must remain within the runtime integration layer. Open WebUI must call FastAPI over the client network, and its direct Ollama integration is disabled.
 
 ### 6.3 Ollama
 
@@ -283,14 +281,32 @@ Expected error scenarios include:
 - An inference request exceeding the configured timeout.
 - An unexpected runtime failure.
 
-### 7.5 Interactive API Documentation
+### 7.5 OpenAI-Compatible API
+
+Open WebUI and other API clients use these routes:
+
+```http
+GET /v1/models
+POST /v1/chat/completions
+```
+
+`GET /v1/models` returns the available runtime model names in OpenAI model-list
+format. Chat completions accept `system`, `user`, and `assistant` messages and
+the selected model. `temperature` is optional. Setting `stream` to `true`
+returns OpenAI-compatible server-sent events; the default is a JSON completion
+response. Errors use the OpenAI error shape and include `X-Request-ID`.
+
+The platform API remains independently available to direct callers. It does
+not store chat history; each request supplies the messages for that turn.
+
+### 7.6 Interactive API Documentation
 
 Swagger UI must be available at `/docs`, backed by the generated OpenAPI
 specification at `/openapi.json`. ReDoc is available at `/redoc`. Users can
 inspect the API operations and submit requests through Swagger UI's **Try it
 out** controls. Include a `POST /api/v1/chat` example using the default model,
-one user message, and temperature `0`. This API documentation UI is in scope;
-a separate product frontend is not.
+one user message, and temperature `0`. Open WebUI is the selected chat client;
+custom frontend development is out of scope.
 
 ## 8. Configuration
 
@@ -316,7 +332,8 @@ Secrets are not expected in the MVP. If introduced later, they must not be commi
 
 ## 9. Persistence and Data Lifecycle
 
-The MVP requires persistent storage for Ollama model artifacts.
+The MVP requires persistent storage for Ollama model artifacts and Open WebUI
+conversation history and settings. FastAPI does not persist conversations.
 
 Model data must survive:
 
@@ -333,7 +350,10 @@ Docker preserves the named volume on the host; a later apply reuses it. Permanen
 deletion is a separate, explicit `docker volume rm` operation documented in
 `infra/terraform/README.md`.
 
-Conversation history, user records, and application state persistence are outside the MVP scope.
+Open WebUI mounts a separate named Docker volume at `/app/backend/data`; routine
+Terraform teardown preserves it. Permanent removal of chat history and settings
+is a separate explicit cleanup operation. User records and application state
+in FastAPI remain outside the MVP scope.
 
 ## 10. Security and Operational Constraints
 
@@ -342,15 +362,19 @@ demonstration, not as a publicly accessible service.
 
 The MVP must:
 
-- Bind the published FastAPI port explicitly to `127.0.0.1`; do not publish
-  Ollama's API to the host by default.
-- Keep Ollama accessible through the internal Docker network unless direct access is explicitly needed for development.
+- Bind published FastAPI and Open WebUI ports explicitly to `127.0.0.1`; do
+  not publish Ollama's API to the host.
+- Put Open WebUI and Ollama on separate Docker networks, with FastAPI attached
+  to both, so the UI reaches Ollama through the API.
+- Disable Open WebUI's direct Ollama integration.
 - Avoid logging prompt and response content by default.
 - Use synthetic or non-sensitive inputs.
 - Exclude local configuration, Terraform state, and generated artifacts from version control as appropriate.
 - Document resource requirements and expected limitations.
 
-Authentication is out of scope. The platform must not rely on the absence of authentication being acceptable beyond its local-only deployment boundary.
+Authentication is out of scope and disabled for this single-user local setup.
+The placeholder bearer token Open WebUI sends is ignored by FastAPI; it is not
+authentication. The unauthenticated services must remain bound to loopback.
 
 Inference latency and supported model size depend on available CPU, memory, storage, and optional GPU capability. No production throughput or availability commitment is included in this scope.
 
@@ -406,7 +430,7 @@ Terraform remains the primary provisioning mechanism. If Docker Compose is inclu
 The setup documentation must identify:
 
 - Supported local environment.
-- Docker Engine, Terraform 1.16.5, Docker provider 4.6.0, and Python 3.14.
+- Docker Engine, Terraform 1.17.0, Docker provider 4.6.0, and Python 3.14.
 - Application image build steps.
 - The reference validation profile: CPU-only x86-64, 8 GiB RAM, and at least
   10 GiB free disk; record actual test results before treating it as verified.
@@ -485,8 +509,9 @@ After deployment, verify the environment through the API published on
 - The model-listing endpoint reaches Ollama on the private Docker network.
 - The chat endpoint returns a response using the installed reference model.
 
-These are deployment smoke checks, not a host-local Ollama integration-test
-suite. Do not assert exact generated text.
+Also verify Open WebUI can list models and complete a streamed chat through the
+published API. These are deployment smoke checks, not a host-local Ollama
+integration-test suite. Do not assert exact generated text.
 
 ### 13.3 Quality Checks
 
@@ -504,10 +529,12 @@ Static type checking with MyPy or Pyright is optional for the MVP.
 The MVP will deliver:
 
 1. Terraform configuration for the local Docker platform.
-2. A containerized FastAPI application.
+2. A containerized FastAPI application and Open WebUI client.
 3. An isolated Ollama integration layer.
-4. Persistent model storage with documented retention and deletion behavior.
-5. Health, model-listing, and chat endpoints, with interactive Swagger UI.
+4. Persistent model and Open WebUI storage with documented retention and
+   deletion behavior.
+5. Health, versioned, and OpenAI-compatible chat endpoints, with interactive
+   Swagger UI.
 6. Unit test suite and documented Docker deployment checks.
 7. Configuration examples and repeatable deployment commands.
 8. Setup, operation, verification, and teardown documentation.
@@ -519,18 +546,26 @@ The MVP is complete when:
 
 - [ ] Terraform initializes and validates successfully.
 - [ ] Terraform provisions the required Docker resources.
-- [ ] FastAPI and Ollama containers start successfully.
+- [ ] FastAPI, Ollama, and Open WebUI containers start successfully.
+- [ ] Open WebUI lists available models through the platform API.
+- [ ] Open WebUI completes a streamed chat through the platform API.
+- [ ] Other clients can use the platform API directly without Open WebUI.
 - [ ] FastAPI communicates with Ollama over the internal network.
 - [ ] The health endpoint returns the documented response.
 - [ ] The models endpoint lists the canonical `llama3.1:8b` model.
 - [ ] The resolved reference-model digest is recorded in setup documentation.
 - [ ] The chat endpoint generates a response from the canonical model.
+- [ ] `/v1/models` and `/v1/chat/completions` provide the documented
+      OpenAI-compatible API behavior.
 - [ ] Swagger UI is available at `/docs` with the chat example and supports
       interactive API requests.
 - [ ] Invalid requests and runtime failures produce documented API errors.
 - [ ] Model data persists across container restarts and routine re-provisioning.
+- [ ] Open WebUI conversations and settings persist across routine
+      re-provisioning.
 - [ ] Routine service teardown preserves model artifacts.
-- [ ] Explicit model-data deletion is documented.
+- [ ] Routine service teardown preserves Open WebUI data.
+- [ ] Explicit model and Open WebUI data deletion is documented separately.
 - [ ] Unit tests are included and pass.
 - [ ] The deployed API lists models and completes a chat request through the
       Ollama container.
@@ -538,8 +573,8 @@ The MVP is complete when:
 - [ ] The README documents setup, model preparation, execution, testing, and teardown.
 - [ ] Architecture and significant design decisions are documented.
 - [ ] No sensitive or proprietary data is included.
-- [ ] FastAPI's published host port binds only to `127.0.0.1`; Ollama has no
-      published host port by default.
+- [ ] FastAPI and Open WebUI published host ports bind only to `127.0.0.1`;
+      Ollama has no published host port and is not on the client network.
 - [ ] The reference validation profile is tested and its measured resource use
       is documented.
 
@@ -559,7 +594,6 @@ The MVP is complete when:
 Potential future phases include:
 
 - Expanded model management and configuration.
-- Streaming responses.
 - Request and response metrics.
 - OpenTelemetry tracing.
 - Structured audit logging.
@@ -591,4 +625,4 @@ This project demonstrates:
 
 ### Portfolio Summary
 
-> I built a reproducible local AI platform foundation using Terraform, Docker, Python, FastAPI, and Ollama, with a clean API boundary between platform services and locally hosted language models.
+> I built a reproducible local AI platform foundation using Terraform, Docker, Open WebUI, Python, FastAPI, and Ollama, with a clean API boundary between clients and locally hosted language models.

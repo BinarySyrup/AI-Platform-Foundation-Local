@@ -10,16 +10,18 @@ configuration, and safe defaults over production-scale complexity.
 
 - **Infrastructure:** Terraform with the Docker provider, in `infra/terraform/`.
 - **Container runtime:** Docker Engine.
+- **Chat client:** Open WebUI `v0.13.4`, published on loopback.
 - **Platform API:** Python/FastAPI in `platform/`.
-- **Model runtime:** Ollama, reachable by the API over an internal Docker
-  network.
-- **Host access:** publish the API on `127.0.0.1` only by default; do not publish
-  Ollama's API to the host.
+- **API compatibility:** OpenAI-compatible model listing and streaming or
+  non-streaming chat completions, alongside the versioned platform routes.
+- **Model runtime:** Ollama, reachable by the API over a private runtime network.
+- **Host access:** publish the API on `127.0.0.1:8000` and Open WebUI on
+  `127.0.0.1:3000`; do not publish Ollama's API to the host.
 - **Automation and docs:** repeatable workflows belong in `scripts/`; project
   documentation belongs in `docs/` and the relevant directory README.
 
-The MVP does not include a UI, authentication, cloud deployment, or
-orchestration beyond Docker.
+The MVP uses Open WebUI as its chat client and does not include custom frontend
+development, authentication, cloud deployment, or orchestration beyond Docker.
 
 ## Infrastructure and Software Design
 
@@ -29,41 +31,51 @@ destroys the containers.
 
 ```mermaid
 flowchart TD
-    Client["Local API client"]
+    Client["Local API clients"]
+    UI["Open WebUI"]
     Terraform["Terraform + Docker provider"]
 
     subgraph Docker["Local Docker Engine"]
         direction TB
-        subgraph Network["Private Docker bridge network"]
-            direction TB
-            subgraph APIContainer["FastAPI container"]
-                direction TB
-                API["FastAPI platform API"]
-                Adapter["Ollama client adapter<br/>HTTPX"]
-                API -->|Validates and forwards requests| Adapter
-            end
+        subgraph ClientNetwork["Client Docker bridge network"]
+            UI
+        end
 
+        subgraph RuntimeNetwork["Runtime Docker bridge network"]
+            Adapter["Ollama client adapter<br/>HTTPX"]
             Ollama["Ollama container<br/>ollama:11434"]
             Adapter -->|HTTP over private network| Ollama
         end
 
+        API["FastAPI platform API<br/>attached to both networks"]
+
         ModelVolume[("Persistent model volume<br/>/root/.ollama")]
         Ollama -->|Reads and writes model files| ModelVolume
+        UIData[("Persistent Open WebUI data<br/>/app/backend/data")]
+        UI -->|Stores chats and settings| UIData
     end
 
     Client -->|HTTP published on 127.0.0.1:8000| API
-    Terraform -. "Provisions network, images, and containers" .-> Docker
+    UI -->|OpenAI-compatible API over client network| API
+    API -->|Runtime request over runtime network| Adapter
+    Terraform -. "Provisions networks, images, containers, and volumes" .-> Docker
 ```
 
 ## Implementation Decisions
 
-Terraform 1.16.5 and Docker provider 4.6.0 manage the local services. The API
-image uses Python 3.14.8; Ollama uses the pinned `ollama/ollama:0.35.1` image.
-The API port is published on loopback only, and Ollama remains on the internal
-Docker bridge network. Ollama mounts a named Docker volume whose lifecycle is
-outside Terraform resource management, so service teardown preserves model
-data; permanent deletion is a separate operator action documented in
-`infra/terraform/README.md`.
+Terraform 1.17.0 and Docker provider 4.6.0 manage the local services. The API
+image uses Python 3.14.8; Ollama uses `ollama/ollama:0.35.1`; Open WebUI uses
+`ghcr.io/open-webui/open-webui:v0.13.4`. The API is attached to both the client
+and runtime networks, while Open WebUI and Ollama each attach to only one. This
+keeps model traffic routed through FastAPI. Both host ports bind to loopback.
+Named Docker volumes retain model artifacts and Open WebUI conversations and
+settings across routine teardown; permanent deletion is a separate operator
+action documented in `infra/terraform/README.md`.
+
+The API remains independently available to other clients on
+`http://127.0.0.1:8000`. Open WebUI calls `http://api:8000/v1` inside Docker.
+Its placeholder bearer token is ignored by the API, which has no authentication
+in this local MVP.
 
 Remaining validation includes recording measured resource use for the target
 hardware profile and running end-to-end tests against the pinned model without
