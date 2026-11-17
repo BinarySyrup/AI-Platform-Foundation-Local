@@ -6,8 +6,23 @@ Use this guide to start the Local AI Platform Foundation, connect to its API, an
 
 - Docker Desktop is installed and running with Linux containers.
 - Terraform CLI `1.17.0` is installed.
-- Python `3.14` is installed if you want to run tests and code checks. Python is not needed to run the Docker services.
+- Python `3.14` is optional. You only need it to run tests and code checks; the API runs inside its Docker image.
 - You do not need an account, password, or API key.
+
+Check Docker and Terraform from PowerShell:
+
+```powershell
+terraform -v
+docker version
+```
+
+Terraform should report version `1.17.0`. Docker should show both **Client** and **Server** versions; if it cannot reach the server, start Docker Desktop. If you plan to run tests, check Python separately:
+
+```powershell
+python --version
+```
+
+It should report version `3.14.x`.
 
 The API and chat page have no sign-in protection. They are published on localhost and intended for local use.
 
@@ -101,7 +116,7 @@ docker start local-ai-platform-open-webui
 
 ## Running Tests & Linters
 
-From the project folder, make a Python environment, install the development tools, and run the checks:
+This section is optional. Only follow it if you want to run tests or code checks locally. From the project folder, make a Python environment, install the development tools, and run the checks:
 
 ```powershell
 python -m venv .venv
