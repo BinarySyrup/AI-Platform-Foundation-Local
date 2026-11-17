@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Open WebUI `v0.13.4` as the local chat interface, with persistent UI data and
+- Open WebUI image `openwebui/open-webui:0.13.4` as the local chat interface, with persistent UI data and
   separate client and runtime Docker networks.
 - OpenAI-compatible model listing and streaming or non-streaming chat
   completions in the FastAPI platform API.
@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Bump the platform API and local API image to 1.2.0.
+- Pin Ollama to `ollama/ollama:0.40.0`.
 - Keep the API independently accessible and route Open WebUI requests through
   FastAPI, with Ollama isolated on the runtime network.
 

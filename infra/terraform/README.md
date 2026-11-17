@@ -3,7 +3,8 @@
 This configuration uses Terraform 1.17.0 and the Docker provider 4.6.0 to build
 the FastAPI image and manage Open WebUI, Ollama, two Docker networks, and
 persistent data volumes. Open WebUI uses the pinned
-`ghcr.io/open-webui/open-webui:v0.13.4` image. The API shares a client network
+`openwebui/open-webui:0.13.4` image, and Ollama uses the pinned
+`ollama/ollama:0.40.0` image. The API shares a client network
 with Open WebUI and a separate runtime network with Ollama, so the UI reaches
 the model through the API. The API and Open WebUI are published on loopback;
 Ollama has no host port.
@@ -92,13 +93,12 @@ Run the Ollama command only when permanent model deletion is intended. Run the
 Open WebUI command only when permanent conversation and settings deletion is
 intended.
 
-An image left by an earlier `terraform destroy` may remain in Docker because
-the previous configuration kept the Ollama image locally. After confirming no
-other container uses it, remove that cached image explicitly:
+If the Ollama image remains cached after teardown, confirm no other container
+uses it before removing it:
 
 ```powershell
-docker image ls ollama/ollama:0.35.1
-docker image rm ollama/ollama:0.35.1
+docker image ls ollama/ollama:0.40.0
+docker image rm ollama/ollama:0.40.0
 ```
 
 Do not use `--force`; Docker should refuse removal if a container still uses

@@ -1,33 +1,68 @@
-# Local AI Platform
+# Local AI Platform Foundation
 
-A small AI chat service that runs on your computer. Open WebUI gives you a chat page. FastAPI provides the API. Ollama runs the language model.
+Chat with a language model on your computer, or connect another app through the API.
 
-## How it works
+## Overview
+
+This project runs Open WebUI, a FastAPI service, and Ollama in Docker. Open WebUI is the chat page, and the API lets other apps use the same local model.
+
+## How It Works
+
+1. Terraform creates the Docker services, networks, and data volumes.
+2. You open Open WebUI in your browser or send a request to the API.
+3. The API sends model requests to Ollama over a private Docker network.
+4. Ollama returns the model's answer through the API.
+
+## Architecture
+
+Open WebUI and other clients send requests to the FastAPI service. The service talks to Ollama through an adapter, so clients do not depend on Ollama directly.
 
 ```mermaid
 flowchart LR
-    You[You] --> UI[Open WebUI]
-    UI --> API[FastAPI API]
-    App[Other apps] --> API
-    API --> Ollama[Ollama model]
+    Terraform[Terraform + Docker provider]
+    Browser[Your browser] --> UI[Open WebUI]
+    Client[Other apps] --> API[FastAPI API]
+    UI -->|OpenAI-compatible API| API
+    API --> Adapter[Ollama adapter]
+    Adapter -->|Private Docker network| Ollama[Ollama]
+    Ollama --> Models[(Model files volume)]
+    UI --> Chats[(Chat and settings volume)]
+    Terraform -. provisions .-> UI
+    Terraform -. provisions .-> API
+    Terraform -. provisions .-> Ollama
 ```
 
-The chat page and other apps both use the API. Ollama stays behind the API.
+See the [full architecture guide](docs/architecture.md).
 
-## Start the platform
+## Tech Stack
 
-You need Docker Desktop and Terraform 1.17.0. Start Docker Desktop first.
+| Part | Version or image |
+| :--- | :--- |
+| Terraform | `1.17.0` |
+| Docker provider | `kreuzwerker/docker` `4.6.0` |
+| Docker runtime | Docker Desktop / Docker Engine |
+| API runtime | Python `3.14.8` (`python:3.14.8-slim-trixie`) |
+| FastAPI | `0.162.0` |
+| HTTPX | `0.28.1` |
+| Pydantic / pydantic-settings | `2.14.1` / `2.16.1` |
+| Uvicorn | `0.54.0` |
+| Platform API image | `local-ai-platform-api:1.2.0` (built locally) |
+| Open WebUI image | `openwebui/open-webui:0.13.4` |
+| Ollama image | `ollama/ollama:0.40.0` |
+| Default model | `llama3.1:8b` |
+| Persistent storage | Docker volumes `local-ai-platform-ollama-models` and `local-ai-platform-open-webui-data` |
+| Tests and linting | pytest `9.2.0`, Ruff `0.17.3` |
 
-From the project folder, prepare Terraform and review what it plans to change:
+## Getting Started
+
+Install and start Docker Desktop and Terraform `1.17.0`. From the project folder, prepare Terraform and inspect the plan:
 
 ```powershell
 terraform -chdir=infra/terraform init
-terraform -chdir=infra/terraform fmt -check
-terraform -chdir=infra/terraform validate
 terraform -chdir=infra/terraform plan
 ```
 
-Review the plan and check that it keeps your saved data. Then start the services:
+Review the plan, then start the services:
 
 ```powershell
 terraform -chdir=infra/terraform apply
@@ -39,83 +74,6 @@ Download the default model once:
 docker exec ollama ollama pull llama3.1:8b
 ```
 
-Open the chat page at <http://127.0.0.1:3000>.
+Open the chat page at <http://127.0.0.1:3000>. The API is at <http://127.0.0.1:8000>. Both are for local use and do not have sign-in protection.
 
-## Use the API
-
-The API is at <http://127.0.0.1:8000>. Other apps on your computer can use it too.
-
-- `GET /v1/models` lists the models.
-- `POST /v1/chat/completions` sends a chat request. It supports regular and streaming replies.
-- `GET /api/v1/models` and `POST /api/v1/chat` are the platform's own API routes.
-- <http://127.0.0.1:8000/docs> lets you try the platform API in a browser.
-
-Try the model list from PowerShell:
-
-```powershell
-curl.exe http://127.0.0.1:8000/v1/models
-```
-
-The OpenAI-compatible API does not require a real API key. The UI sends a placeholder key that the API ignores.
-
-## Stop and start the services
-
-Stop the project containers. This keeps their settings and saved data:
-
-```powershell
-docker stop local-ai-platform-open-webui local-ai-platform-api ollama
-```
-
-Start them again in this order:
-
-```powershell
-docker start ollama
-docker start local-ai-platform-api
-docker start local-ai-platform-open-webui
-```
-
-## Where your data lives
-
-- Ollama models are in the Docker volume `local-ai-platform-ollama-models`.
-- Open WebUI chats and settings are in `local-ai-platform-open-webui-data`.
-- FastAPI does not save chat history.
-
-Docker keeps both volumes when you stop the services or run `terraform destroy`. On Windows, Docker Desktop stores the files inside its Linux environment, not in this project folder. See the [Terraform guide](infra/terraform/README.md) before permanently deleting a volume.
-
-The UI and API are set up for use on this computer. They do not have sign-in protection. Keep them on localhost.
-
-## Check or fix a service
-
-See which containers are running:
-
-```powershell
-docker ps --filter "name=local-ai-platform-api" --filter "name=ollama" --filter "name=local-ai-platform-open-webui" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}\t{{.Size}}"
-```
-
-View a service's recent messages:
-
-```powershell
-docker logs --tail 100 local-ai-platform-api
-docker logs --tail 100 ollama
-docker logs --tail 100 local-ai-platform-open-webui
-```
-
-## Run the checks
-
-Python 3.14 is needed for these checks:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev]"
-python -m pytest tests/unit
-python -m ruff check .
-python -m ruff format --check .
-```
-
-## More details
-
-- [Terraform setup and data cleanup](infra/terraform/README.md)
-- [API details](platform/README.md)
-- [Architecture](docs/architecture.md)
-- [Project scope](docs/project-scope.md)
+For setup details, configuration, API examples, stopping services, and troubleshooting, see the [Getting Started guide](docs/getting-started.md).

@@ -29,7 +29,7 @@ variable "open_webui_host_port" {
 variable "open_webui_image" {
   description = "Version-pinned Open WebUI container image."
   type        = string
-  default     = "ghcr.io/open-webui/open-webui:v0.13.4"
+  default     = "openwebui/open-webui:0.13.4"
 }
 
 variable "open_webui_volume_name" {
@@ -63,7 +63,7 @@ variable "log_level" {
 variable "ollama_image" {
   description = "Version-pinned Ollama container image."
   type        = string
-  default     = "ollama/ollama:0.35.1"
+  default     = "ollama/ollama:0.40.0"
 }
 
 variable "ollama_volume_name" {

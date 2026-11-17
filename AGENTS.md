@@ -30,3 +30,12 @@
 - For Terraform changes, run `terraform fmt -check`, `terraform validate`, and review `terraform plan` when the required provider and Docker daemon are available.
 - For Python changes, run the relevant `pytest` tests and Ruff checks when configured.
 - If a check cannot run because prerequisites are unavailable, report that clearly rather than implying it passed.
+
+<!--
+Codex Agent:        OpenAI Codex
+Model:              GPT-6-Luna (reasoning high)
+Model provider:     azure
+Thread name:        feature/open_webui
+GitHub Branch:      feature/open_webui
+codex resume 01a1eaec-8bb6-7740-ada1-65ef71e947bf
+-->
