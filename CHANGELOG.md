@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Bump the platform API and local API image to 1.2.0.
-- Pin Ollama to `ollama/ollama:0.40.0`.
+- Pin Ollama to `ollama/ollama:0.40.16`.
 - Keep the API independently accessible and route Open WebUI requests through
   FastAPI, with Ollama isolated on the runtime network.
 

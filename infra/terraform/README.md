@@ -4,7 +4,7 @@ This configuration uses Terraform 1.17.0 and the Docker provider 4.6.0 to build
 the FastAPI image and manage Open WebUI, Ollama, two Docker networks, and
 persistent data volumes. Open WebUI uses the pinned
 `openwebui/open-webui:0.13.4` image, and Ollama uses the pinned
-`ollama/ollama:0.40.0` image. The API shares a client network
+`ollama/ollama:0.40.16` image. The API shares a client network
 with Open WebUI and a separate runtime network with Ollama, so the UI reaches
 the model through the API. The API and Open WebUI are published on loopback;
 Ollama has no host port.
@@ -97,8 +97,8 @@ If the Ollama image remains cached after teardown, confirm no other container
 uses it before removing it:
 
 ```powershell
-docker image ls ollama/ollama:0.40.0
-docker image rm ollama/ollama:0.40.0
+docker image ls ollama/ollama:0.40.16
+docker image rm ollama/ollama:0.40.16
 ```
 
 Do not use `--force`; Docker should refuse removal if a container still uses

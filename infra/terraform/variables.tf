@@ -63,7 +63,7 @@ variable "log_level" {
 variable "ollama_image" {
   description = "Version-pinned Ollama container image."
   type        = string
-  default     = "ollama/ollama:0.40.0"
+  default     = "ollama/ollama:0.40.16"
 }
 
 variable "ollama_volume_name" {

@@ -48,7 +48,7 @@ See the [full architecture guide](docs/architecture.md).
 | Uvicorn | `0.54.0` |
 | Platform API image | `local-ai-platform-api:1.2.0` (built locally) |
 | Open WebUI image | `openwebui/open-webui:0.13.4` |
-| Ollama image | `ollama/ollama:0.40.0` |
+| Ollama image | `ollama/ollama:0.40.16` |
 | Default model | `llama3.1:8b` |
 | Persistent storage | Docker volumes `local-ai-platform-ollama-models` and `local-ai-platform-open-webui-data` |
 | Tests and linting | pytest `9.2.0`, Ruff `0.17.3` |

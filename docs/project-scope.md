@@ -84,7 +84,7 @@ Security-conscious architecture does not establish regulatory compliance. The MV
 | Platform API | Python 3.14, FastAPI, Pydantic, Uvicorn | Expose and validate the platform API |
 | Chat client | `openwebui/open-webui:0.13.4` | Provide a local interface through the platform API |
 | Runtime integration | HTTPX | Communicate with Ollama over HTTP |
-| Model runtime | Ollama `ollama/ollama:0.40.0` | Manage model artifacts and execute local inference |
+| Model runtime | Ollama `ollama/ollama:0.40.16` | Manage model artifacts and execute local inference |
 | Testing | Pytest, HTTPX test client | Validate API behavior and verify connectivity through Docker deployment checks |
 | Code quality | Ruff | Lint and format Python code |
 | Optional type checking | MyPy or Pyright | Provide additional static validation |

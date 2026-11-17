@@ -49,7 +49,7 @@ Download the default model once:
 docker exec ollama ollama pull llama3.1:8b
 ```
 
-Terraform builds the API image `local-ai-platform-api:1.2.0` and downloads Open WebUI `openwebui/open-webui:0.13.4` and Ollama `ollama/ollama:0.40.0`.
+Terraform builds the API image `local-ai-platform-api:1.2.0` and downloads Open WebUI `openwebui/open-webui:0.13.4` and Ollama `ollama/ollama:0.40.16`.
 
 To pull the Open WebUI image manually, run:
 
