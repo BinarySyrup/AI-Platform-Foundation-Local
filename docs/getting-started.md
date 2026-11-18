@@ -59,6 +59,12 @@ docker pull openwebui/open-webui:0.13.4
 
 The example settings already work. To change ports, image tags, model, or data volume names, copy `infra/terraform/terraform.tfvars.example` to `infra/terraform/terraform.tfvars` and edit that copy. Git ignores the local `terraform.tfvars` file.
 
+### Optional NVIDIA GPU
+
+The default is CPU-only. To request all GPUs, set `nvidia_visible_devices = "all"` in your local `infra/terraform/terraform.tfvars` file. You can also set specific device IDs, such as `"0"` or `"0,1"`. Terraform then requests those GPUs for the Ollama container and sets `NVIDIA_VISIBLE_DEVICES` to the same value.
+
+GPU use requires an NVIDIA driver and Docker support for NVIDIA GPUs on the host. Leave the setting empty on a CPU-only host.
+
 ## Environment Variables
 
 The API reads settings from its process environment. `.env.example` is a reference list; the app does not load that file by itself. Terraform sets the API's container values. The host bind address is `127.0.0.1` for local runs and `0.0.0.0` inside Docker; Docker still publishes the service only on `127.0.0.1` on your computer.

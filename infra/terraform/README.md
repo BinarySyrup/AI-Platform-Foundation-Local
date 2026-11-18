@@ -33,6 +33,17 @@ excludes local configuration, Terraform state, model data, and development
 artifacts from the build context. The apply outputs `api_url` and
 `open_webui_url` point to the loopback-only services.
 
+## Optional NVIDIA GPU
+
+GPU access is disabled by default. Leave `nvidia_visible_devices` empty for a
+CPU-only Docker host. To request all GPUs, set it to `"all"` in your local
+`terraform.tfvars`; to select devices, use IDs such as `"0"` or `"0,1"`.
+Terraform passes the selection both as Docker GPU devices and as
+`NVIDIA_VISIBLE_DEVICES` in the Ollama container.
+
+The host needs an NVIDIA driver and Docker support for NVIDIA GPUs. The setting
+does not install host drivers or NVIDIA Container Toolkit.
+
 ## Prepare and Verify Ollama
 
 The Ollama container is named `ollama` and stores model files in the named

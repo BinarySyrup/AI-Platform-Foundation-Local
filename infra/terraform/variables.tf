@@ -66,6 +66,12 @@ variable "ollama_image" {
   default     = "ollama/ollama:0.40.16"
 }
 
+variable "nvidia_visible_devices" {
+  description = "Optional NVIDIA devices for Ollama; leave empty for CPU-only Docker hosts."
+  type        = string
+  default     = ""
+}
+
 variable "ollama_volume_name" {
   description = "Docker volume that retains Ollama model artifacts across Terraform destroy."
   type        = string

@@ -3,6 +3,7 @@ api_image_name          = "local-ai-platform-api:1.2.0"
 default_model           = "llama3.1:8b"
 log_level               = "INFO"
 ollama_image            = "ollama/ollama:0.40.16"
+nvidia_visible_devices  = ""
 ollama_volume_name      = "local-ai-platform-ollama-models"
 open_webui_host_port    = 3000
 open_webui_image        = "openwebui/open-webui:0.13.4"

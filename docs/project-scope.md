@@ -196,6 +196,7 @@ Ollama is responsible for:
 - Loading and running local models.
 - Processing generation requests.
 - Providing the internal runtime HTTP API.
+- Using optional NVIDIA GPU devices when configured; CPU-only operation remains the default.
 
 Ollama remains an implementation detail behind the platform API.
 

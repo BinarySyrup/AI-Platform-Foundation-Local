@@ -49,6 +49,12 @@ resource "docker_container" "ollama" {
   name    = "ollama"
   image   = docker_image.ollama.image_id
   restart = "unless-stopped"
+  env = var.nvidia_visible_devices == "" ? [] : [
+    "NVIDIA_VISIBLE_DEVICES=${var.nvidia_visible_devices}",
+  ]
+  gpus = var.nvidia_visible_devices == "" ? null : (
+    var.nvidia_visible_devices == "all" ? "all" : "device=${var.nvidia_visible_devices}"
+  )
 
   networks_advanced {
     name    = docker_network.platform.name
