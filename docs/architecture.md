@@ -4,6 +4,10 @@ The Local AI Platform Foundation runs Open WebUI, a FastAPI service, and Ollama 
 
 ## System Diagram
 
+![Local AI Platform architecture diagram](images/architecture-v2.png)
+
+The diagram shows the full platform. This editable flow shows the main request path:
+
 ```mermaid
 flowchart LR
     Terraform[Terraform + Docker provider]

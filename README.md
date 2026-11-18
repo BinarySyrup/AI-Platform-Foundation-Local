@@ -4,7 +4,7 @@ Chat with a language model on your computer, or connect another app through the 
 
 ## Overview
 
-This project runs Open WebUI, a FastAPI service, and Ollama in Docker. Open WebUI is the chat page, and the API lets other apps use the same local model.
+This project is to run a language model locally and developers who want to connect their apps to it. It runs Open WebUI, FastAPI, and Ollama in Docker, with the API handling requests to the model.
 
 ## How It Works
 
@@ -16,6 +16,12 @@ This project runs Open WebUI, a FastAPI service, and Ollama in Docker. Open WebU
 ## Architecture
 
 Open WebUI and other clients send requests to the FastAPI service. The service talks to Ollama through an adapter, so clients do not depend on Ollama directly.
+
+### System Architecture
+
+![Local AI Platform architecture diagram](docs/images/architecture-v2.png)
+
+### Data Flow Diagram
 
 ```mermaid
 flowchart LR

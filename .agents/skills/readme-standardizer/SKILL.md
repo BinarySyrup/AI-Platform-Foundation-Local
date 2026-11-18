@@ -30,7 +30,8 @@ Include a crisp one-sentence tagline and any valid repository badges right under
 
 ### `## Architecture`
 * Provide a brief 2–3 sentence summary of the system design (e.g., monolith, microservices, event-driven pipeline).
-* Include a clean, high-level **Mermaid diagram** (` ```mermaid `) illustrating major components and data flow.
+* Subsection for "System Architecture" include a clean, high-level systems architecture diagram images.
+* Subsection for "Data Flow Diagram", include a clean, high-level **Mermaid diagram** (` ```mermaid `) illustrating major components and data flow.
 * End the section with a direct Markdown link to the detailed architecture file in `docs/` (e.g., `For deep-dive component specs and data schemas, see [Detailed Architecture](docs/architecture.md).`).
 
 ### `## Tech Stack`
