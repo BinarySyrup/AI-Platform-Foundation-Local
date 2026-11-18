@@ -41,6 +41,16 @@ CPU-only Docker host. To request all GPUs, set it to `"all"` in your local
 Terraform passes the selection both as Docker GPU devices and as
 `NVIDIA_VISIBLE_DEVICES` in the Ollama container.
 
+List the NVIDIA GPU IDs visible to the host with:
+
+```powershell
+nvidia-smi --query-gpu=index,name,uuid --format=csv,noheader
+```
+
+Use the index values from the output for `nvidia_visible_devices`. If the
+command is not found or lists no GPUs, leave the setting empty for CPU-only
+operation.
+
 The host needs an NVIDIA driver and Docker support for NVIDIA GPUs. The setting
 does not install host drivers or NVIDIA Container Toolkit.
 
