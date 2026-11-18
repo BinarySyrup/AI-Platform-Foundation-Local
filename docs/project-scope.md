@@ -4,7 +4,7 @@
 
 The Local AI Platform Foundation is a portfolio project demonstrating the provisioning and operation of a small, local AI platform using open-source technologies.
 
-The minimum viable product (MVP) uses Terraform to provision local Docker resources, Open WebUI as a chat client, and a Python/FastAPI service that provides the client-facing API to locally hosted language models through Ollama.
+This document defines the full release. It uses Terraform to provision local Docker resources, Open WebUI as a chat client, and a Python/FastAPI service that provides the client-facing API to locally hosted language models through Ollama.
 
 The project prioritizes a clean, reproducible platform foundation over feature breadth. Capabilities such as retrieval-augmented generation (RAG), authentication, vector storage, advanced observability, and Kubernetes deployment are reserved for future phases.
 
@@ -12,7 +12,7 @@ The project demonstrates practical skills in infrastructure as code, container p
 
 ## 2. Objectives
 
-The MVP will:
+The full release will:
 
 - Provision a local AI runtime and supporting infrastructure using Terraform.
 - Run platform components in Docker containers.
@@ -32,7 +32,7 @@ The MVP will:
 
 ### 3.1 In Scope
 
-The MVP includes:
+The release includes:
 
 - Terraform-managed Docker infrastructure.
 - Separate Docker networks for client-to-API and API-to-runtime communication.
@@ -52,7 +52,7 @@ The MVP includes:
 
 ### 3.2 Out of Scope
 
-The MVP excludes:
+The release excludes:
 
 - Cloud deployment.
 - Kubernetes.
@@ -70,9 +70,9 @@ The MVP excludes:
 
 ### 3.3 Data and Compliance Boundary
 
-The MVP must use synthetic or non-sensitive data only. Sensitive, proprietary, regulated, or personally identifiable information must not be included in source code, test fixtures, example requests, or project documentation.
+The release must use synthetic or non-sensitive data only. Sensitive, proprietary, regulated, or personally identifiable information must not be included in source code, test fixtures, example requests, or project documentation.
 
-Security-conscious architecture does not establish regulatory compliance. The MVP must not be represented as HIPAA-compliant or suitable for regulated workloads.
+Security-conscious architecture does not establish regulatory compliance. The release must not be represented as HIPAA-compliant or suitable for regulated workloads.
 
 ## 4. Technology Stack
 
@@ -92,19 +92,19 @@ Security-conscious architecture does not establish regulatory compliance. The MV
 Runtime and development dependency versions are pinned in the root
 `pyproject.toml`; the API supports Python 3.14 only.
 
-Ollama is the initial model runtime, deployed as a Docker container and accessed
+Ollama is the model runtime, deployed as a Docker container and accessed
 over the private Docker network. Runtime-specific HTTP behavior remains isolated
 so alternative runtimes can be evaluated later.
 
 ### 4.1 Reference Model and Validation Profile
 
-Use Ollama's explicit `llama3.1:8b` tag as the default MVP model for setup and
+Use Ollama's explicit `llama3.1:8b` tag as the default release model for setup and
 Docker deployment verification. Refer to the [Ollama model listing](https://ollama.com/library/llama3.1)
 for current model details. Do not use a floating `latest` tag. Record the
 resolved model digest during deployment validation, and keep the model
 configurable through Docker deployment settings.
 
-The initial CPU-only validation target is an x86-64 host with 8 GiB of RAM and
+The CPU-only validation target is an x86-64 host with 8 GiB of RAM and
 at least 10 GiB of free disk space. This is a target profile, not a verified
 minimum requirement. Validate it during implementation and record the tested
 host OS, CPU, memory, free disk, and measured peak resource use before claiming
@@ -173,7 +173,22 @@ The platform API is responsible for:
 
 Ollama-specific payloads and transport details must remain within the runtime integration layer. Open WebUI must call FastAPI over the client network, and its direct Ollama integration is disabled.
 
-### 6.3 Ollama
+### 6.3 Open WebUI
+
+Open WebUI is responsible for:
+
+- Providing the local browser-based chat interface, published on
+  `127.0.0.1:3000` by default.
+- Sending model-listing and chat requests to the FastAPI service through the
+  OpenAI-compatible API on the client Docker network.
+- Keeping direct Ollama access disabled so model requests pass through FastAPI.
+- Persisting conversations and settings in its named Docker volume mounted at
+  `/app/backend/data`.
+
+Open WebUI is a client of the platform API. It does not own model execution or
+connect directly to the Ollama runtime.
+
+### 6.4 Ollama
 
 Ollama is responsible for:
 
@@ -184,7 +199,7 @@ Ollama is responsible for:
 
 Ollama remains an implementation detail behind the platform API.
 
-## 7. Initial API Scope
+## 7. API Scope
 
 ### 7.1 API Landing Page
 
@@ -248,8 +263,9 @@ Conceptual request:
 }
 ```
 
-The MVP supports non-streaming responses. The implemented request and response
-schemas are published through FastAPI's generated OpenAPI specification.
+The platform's native chat route supports non-streaming responses. The
+implemented request and response schemas are published through FastAPI's
+generated OpenAPI specification.
 
 The implemented request contract accepts 1–100 messages with roles `system`,
 `user`, or `assistant`; message content must be non-blank and no longer than
@@ -315,7 +331,7 @@ Application configuration will be supplied through environment variables and doc
 | Variable | Purpose |
 |---|---|
 | `OLLAMA_BASE_URL` | Internal HTTP address of the Ollama service |
-| `DEFAULT_MODEL` | Default model identifier; `llama3.1:8b` for the MVP |
+| `DEFAULT_MODEL` | Default model identifier; `llama3.1:8b` for this release |
 | `API_HOST` | Application bind address; local process defaults to `127.0.0.1`, while the container sets `0.0.0.0` and relies on loopback-only host port publishing |
 | `API_PORT` | Application listening port |
 | `LOG_LEVEL` | Application logging verbosity |
@@ -328,11 +344,11 @@ Infrastructure configuration will use Terraform variables, with example values d
 
 Configuration loading and precedence must be documented; `.env.example` is a reference template, not an automatically loaded configuration mechanism.
 
-Secrets are not expected in the MVP. If introduced later, they must not be committed to the repository.
+The release requires no secrets. Any secrets introduced during future development must not be committed to the repository.
 
 ## 9. Persistence and Data Lifecycle
 
-The MVP requires persistent storage for Ollama model artifacts and Open WebUI
+The release requires persistent storage for Ollama model artifacts and Open WebUI
 conversation history and settings. FastAPI does not persist conversations.
 
 Model data must survive:
@@ -353,14 +369,14 @@ deletion is a separate, explicit `docker volume rm` operation documented in
 Open WebUI mounts a separate named Docker volume at `/app/backend/data`; routine
 Terraform teardown preserves it. Permanent removal of chat history and settings
 is a separate explicit cleanup operation. User records and application state
-in FastAPI remain outside the MVP scope.
+in FastAPI remain outside this release's scope.
 
 ## 10. Security and Operational Constraints
 
 The platform is intended for local Docker deployment and portfolio
 demonstration, not as a publicly accessible service.
 
-The MVP must:
+The release must:
 
 - Bind published FastAPI and Open WebUI ports explicitly to `127.0.0.1`; do
   not publish Ollama's API to the host.
@@ -378,54 +394,9 @@ authentication. The unauthenticated services must remain bound to loopback.
 
 Inference latency and supported model size depend on available CPU, memory, storage, and optional GPU capability. No production throughput or availability commitment is included in this scope.
 
-## 11. Repository Structure
+## 11. Operational Workflow
 
-```text
-AI-Platform-Foundation-Local/
-├── .dockerignore
-├── .env.example
-├── AGENTS.md
-├── CHANGELOG.md
-├── README.md
-├── LICENSE
-├── pyproject.toml
-├── .gitignore
-├── docs/
-│   ├── architecture.md
-│   └── project-scope.md
-├── infra/
-│   └── terraform/
-│       ├── .terraform.lock.hcl
-│       ├── README.md
-│       ├── main.tf
-│       ├── outputs.tf
-│       ├── terraform.tfvars.example
-│       ├── variables.tf
-│       └── versions.tf
-├── platform/
-│   ├── Dockerfile
-│   ├── README.md
-│   └── app/
-│       ├── api/
-│       ├── clients/
-│       ├── models/
-│       ├── __init__.py
-│       ├── main.py
-│       ├── run.py
-│       └── settings.py
-├── scripts/
-│   └── README.md
-└── tests/
-    ├── unit/
-    ├── __init__.py
-    └── helpers.py
-```
-
-Terraform remains the primary provisioning mechanism. If Docker Compose is included, its purpose and resource ownership must be documented to avoid conflicting management of the same containers, networks, or volumes.
-
-## 12. Operational Workflow
-
-### 12.1 Prerequisites
+### 11.1 Prerequisites
 
 The setup documentation must identify:
 
@@ -436,7 +407,7 @@ The setup documentation must identify:
   10 GiB free disk; record actual test results before treating it as verified.
 - Network access required to download dependencies, images, and model artifacts.
 
-### 12.2 Provision Infrastructure
+### 11.2 Provision Infrastructure
 
 From the repository root:
 
@@ -447,7 +418,7 @@ terraform -chdir=infra/terraform plan
 terraform -chdir=infra/terraform apply
 ```
 
-### 12.3 Prepare a Model
+### 11.3 Prepare a Model
 
 After the Ollama container starts, download the canonical test model:
 
@@ -463,7 +434,7 @@ another installed model.
 Record the resolved digest shown by `docker exec ollama ollama list` when
 capturing setup results.
 
-### 12.4 Verify the Platform
+### 11.4 Verify the Platform
 
 ```bash
 curl http://localhost:8000/health
@@ -472,7 +443,7 @@ curl http://localhost:8000/api/v1/models
 
 Then submit a chat request to `POST /api/v1/chat` using an installed model.
 
-### 12.5 Teardown and Cleanup
+### 11.5 Teardown and Cleanup
 
 The Ollama container uses a named Docker volume outside Terraform resource
 management, so routine `terraform destroy` removes the service resources while
@@ -488,9 +459,9 @@ A separate, explicit cleanup procedure is documented in
 `infra/terraform/README.md`; do not remove retained model artifacts as part of
 routine teardown.
 
-## 13. Testing and Quality
+## 12. Testing and Quality
 
-### 13.1 Unit Tests
+### 12.1 Unit Tests
 
 Unit tests should cover:
 
@@ -500,7 +471,7 @@ Unit tests should cover:
 - Configuration handling.
 - Error and timeout mapping.
 
-### 13.2 Docker Deployment Checks
+### 12.2 Docker Deployment Checks
 
 After deployment, verify the environment through the API published on
 `127.0.0.1:8000`:
@@ -513,7 +484,7 @@ Also verify Open WebUI can list models and complete a streamed chat through the
 published API. These are deployment smoke checks, not a host-local Ollama
 integration-test suite. Do not assert exact generated text.
 
-### 13.3 Quality Checks
+### 12.3 Quality Checks
 
 The project must provide documented commands for:
 
@@ -522,63 +493,9 @@ The project must provide documented commands for:
 - Validating Terraform configuration.
 - Verifying the deployed API and runtime through the published API.
 
-Static type checking with MyPy or Pyright is optional for the MVP.
+Static type checking with MyPy or Pyright is optional for this release.
 
-## 14. Deliverables
-
-The MVP will deliver:
-
-1. Terraform configuration for the local Docker platform.
-2. A containerized FastAPI application and Open WebUI client.
-3. An isolated Ollama integration layer.
-4. Persistent model and Open WebUI storage with documented retention and
-   deletion behavior.
-5. Health, versioned, and OpenAI-compatible chat endpoints, with interactive
-   Swagger UI.
-6. Unit test suite and documented Docker deployment checks.
-7. Configuration examples and repeatable deployment commands.
-8. Setup, operation, verification, and teardown documentation.
-9. Architecture documentation and records of significant design decisions.
-
-## 15. MVP Acceptance Criteria
-
-The MVP is complete when:
-
-- [ ] Terraform initializes and validates successfully.
-- [ ] Terraform provisions the required Docker resources.
-- [ ] FastAPI, Ollama, and Open WebUI containers start successfully.
-- [ ] Open WebUI lists available models through the platform API.
-- [ ] Open WebUI completes a streamed chat through the platform API.
-- [ ] Other clients can use the platform API directly without Open WebUI.
-- [ ] FastAPI communicates with Ollama over the internal network.
-- [ ] The health endpoint returns the documented response.
-- [ ] The models endpoint lists the canonical `llama3.1:8b` model.
-- [ ] The resolved reference-model digest is recorded in setup documentation.
-- [ ] The chat endpoint generates a response from the canonical model.
-- [ ] `/v1/models` and `/v1/chat/completions` provide the documented
-      OpenAI-compatible API behavior.
-- [ ] Swagger UI is available at `/docs` with the chat example and supports
-      interactive API requests.
-- [ ] Invalid requests and runtime failures produce documented API errors.
-- [ ] Model data persists across container restarts and routine re-provisioning.
-- [ ] Open WebUI conversations and settings persist across routine
-      re-provisioning.
-- [ ] Routine service teardown preserves model artifacts.
-- [ ] Routine service teardown preserves Open WebUI data.
-- [ ] Explicit model and Open WebUI data deletion is documented separately.
-- [ ] Unit tests are included and pass.
-- [ ] The deployed API lists models and completes a chat request through the
-      Ollama container.
-- [ ] Required linting and validation checks pass.
-- [ ] The README documents setup, model preparation, execution, testing, and teardown.
-- [ ] Architecture and significant design decisions are documented.
-- [ ] No sensitive or proprietary data is included.
-- [ ] FastAPI and Open WebUI published host ports bind only to `127.0.0.1`;
-      Ollama has no published host port and is not on the client network.
-- [ ] The reference validation profile is tested and its measured resource use
-      is documented.
-
-## 16. Key Risks and Dependencies
+## 13. Key Risks and Dependencies
 
 | Risk or dependency | Impact | Mitigation |
 |---|---|---|
@@ -589,7 +506,7 @@ The MVP is complete when:
 | Nondeterministic model output | Unreliable deployment checks | Verify successful responses without requiring exact generated wording |
 | Terraform and Compose ownership overlap | Conflicting infrastructure state | Keep Terraform primary and clearly separate optional Compose workflows |
 
-## 17. Future Enhancements
+## 14. Future Enhancements
 
 Potential future phases include:
 
@@ -606,9 +523,9 @@ Potential future phases include:
 - Azure and AWS infrastructure.
 - CI/CD automation and Terraform security scanning.
 
-These capabilities are not MVP commitments. Each should be introduced only after its requirements, operational cost, security implications, and architectural impact have been evaluated.
+These capabilities are outside the current release scope. Any future scope change should be evaluated for requirements, operational cost, security implications, and architectural impact.
 
-## 18. Project Positioning
+## 15. Project Positioning
 
 This project demonstrates:
 

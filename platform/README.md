@@ -33,8 +33,8 @@ path, status, duration, and request ID; it does not log prompt or response
 content. The OpenAI-compatible routes use the standard error shape and include
 the request ID in the response header.
 
-The platform API does not authenticate requests in this local MVP. Open WebUI
-uses a placeholder bearer token that the API ignores. Keep both published
+The platform API does not authenticate requests in this local release. Open
+WebUI uses a placeholder bearer token that the API ignores. Keep both published
 services bound to loopback.
 
 ## Tests and Container Image
