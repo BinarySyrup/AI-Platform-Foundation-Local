@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-11-17
+
+### Added
+
+- Open WebUI image `openwebui/open-webui:0.13.4` as the local chat interface, with persistent UI data and
+  separate client and runtime Docker networks.
+- OpenAI-compatible model listing and streaming or non-streaming chat
+  completions in the FastAPI platform API.
+- Optional NVIDIA GPU passthrough for Ollama, with CPU-only operation as the
+  default.
+
+### Changed
+
+- Bump the platform API and local API image to 1.2.0.
+- Pin Ollama to `ollama/ollama:0.40.16`.
+- Keep the API independently accessible and route Open WebUI requests through
+  FastAPI, with Ollama isolated on the runtime network.
+
 ## [1.1.0] - 2026-10-28
 
 ### Added

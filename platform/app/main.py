@@ -10,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.openai_routes import openai_router
 from app.api.routes import router
 from app.clients.ollama import (
     ModelNotFound,
@@ -40,6 +41,19 @@ def _error_response(
     details: list[ValidationIssue] | None = None,
 ) -> JSONResponse:
     request_id = getattr(request.state, "request_id", str(uuid4()))
+    if request.url.path.startswith("/v1/"):
+        error_type = "invalid_request_error" if status_code < 500 else "server_error"
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "error": {
+                    "message": message,
+                    "type": error_type,
+                    "code": code,
+                }
+            },
+            headers={"X-Request-ID": request_id},
+        )
     payload = ErrorResponse(
         error=ErrorDetail(code=code, message=message, details=details),
         request_id=request_id,
@@ -76,8 +90,11 @@ def create_app(
 
     application = FastAPI(
         title="Local AI Platform API",
-        description="A local API for model discovery and non-streaming chat.",
-        version="1.0.0",
+        description=(
+            "A local platform API with versioned endpoints and an OpenAI-compatible "
+            "interface for model discovery and streaming or non-streaming chat."
+        ),
+        version="1.2.0",
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
@@ -86,11 +103,16 @@ def create_app(
             {"name": "health", "description": "API liveness checks."},
             {"name": "models", "description": "Models available in Ollama."},
             {"name": "chat", "description": "Non-streaming chat completion."},
+            {
+                "name": "OpenAI-compatible API",
+                "description": "Model listing and chat completions for API clients.",
+            },
         ],
         lifespan=lifespan,
     )
     application.state.settings = app_settings
     application.include_router(router)
+    application.include_router(openai_router)
 
     @application.middleware("http")
     async def add_request_id_and_log(request: Request, call_next):

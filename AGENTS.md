@@ -2,11 +2,11 @@
 
 ## Project direction
 
-- Read `docs/project-scope.md` before implementing features. It defines the MVP: Terraform with the Docker provider, Docker, a Python/FastAPI platform API, and Ollama.
+- Read `docs/project-scope.md` before implementing features. It defines the full release scope: Terraform with the Docker provider, Docker, a Python/FastAPI platform API, Open WebUI, and Ollama.
 - Keep the API as the boundary between clients and the model runtime; isolate Ollama-specific behavior behind a client or adapter.
-- Keep work within the MVP. Do not add cloud deployment, Kubernetes, authentication, a frontend, RAG, vector storage, document ingestion, agents, or model training unless the scope is deliberately revised.
+- Keep work within the full release scope. Do not add cloud deployment, Kubernetes, authentication, custom frontend development, RAG, vector storage, document ingestion, agents, or model training unless the scope is deliberately revised.
 - Preserve the repository layout documented in `docs/project-scope.md`: `infra/terraform/`, `platform/`, `scripts/`, and `docs/`. Do not move files implicitly.
-- Keep `README.md` and `docs/architecture.md` consistent with the selected MVP stack when changing project direction or setup.
+- Keep `README.md` and `docs/architecture.md` consistent with the selected release stack when changing project direction or setup.
 
 ## Safety and data
 
@@ -30,3 +30,12 @@
 - For Terraform changes, run `terraform fmt -check`, `terraform validate`, and review `terraform plan` when the required provider and Docker daemon are available.
 - For Python changes, run the relevant `pytest` tests and Ruff checks when configured.
 - If a check cannot run because prerequisites are unavailable, report that clearly rather than implying it passed.
+
+<!--
+Codex Agent:        OpenAI Codex
+Model:              GPT-6-Luna (reasoning high)
+Model provider:     azure
+Thread name:        feature/open_webui
+GitHub Branch:      feature/open_webui
+codex resume 01a1eaec-8bb6-7740-ada1-65ef71e947bf
+-->

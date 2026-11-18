@@ -8,6 +8,7 @@ from app.clients.ollama import (
     ModelNotFound,
     OllamaClient,
     RuntimeProtocolError,
+    RuntimeResponseError,
     RuntimeTimeout,
     RuntimeUnavailable,
 )
@@ -102,6 +103,62 @@ def test_chat_maps_unknown_model() -> None:
             )
 
     with pytest.raises(ModelNotFound):
+        run_async(operation())
+
+
+def test_chat_stream_uses_streaming_runtime_contract() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(
+            200,
+            content=(
+                b'{"model":"llama3.1:8b","message":{"content":"Hel"},"done":false}\n'
+                b'{"model":"llama3.1:8b","message":{"content":"lo."},"done":true}\n'
+            ),
+        )
+
+    async def operation():
+        async with make_async_client(handler) as http_client:
+            return [
+                chunk
+                async for chunk in OllamaClient(http_client).chat_stream(
+                    model="llama3.1:8b",
+                    messages=[ChatMessage(role="user", content="Hi.")],
+                    temperature=0.2,
+                )
+            ]
+
+    chunks = run_async(operation())
+    sent = json.loads(requests[0].content)
+
+    assert chunks == ["Hel", "lo."]
+    assert requests[0].url.path == "/api/chat"
+    assert sent == {
+        "model": "llama3.1:8b",
+        "messages": [{"role": "user", "content": "Hi."}],
+        "stream": True,
+        "options": {"temperature": 0.2},
+    }
+
+
+def test_chat_stream_maps_runtime_errors() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"error": "invalid request"})
+
+    async def operation():
+        async with make_async_client(handler) as http_client:
+            return [
+                chunk
+                async for chunk in OllamaClient(http_client).chat_stream(
+                    model="llama3.1:8b",
+                    messages=[ChatMessage(role="user", content="Hi.")],
+                    temperature=None,
+                )
+            ]
+
+    with pytest.raises(RuntimeResponseError):
         run_async(operation())
 
 
