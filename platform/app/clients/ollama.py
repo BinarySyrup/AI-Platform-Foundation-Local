@@ -1,3 +1,5 @@
+import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -88,6 +90,76 @@ class OllamaClient:
             model=selected_model,
             message=ChatMessage(role="assistant", content=message["content"]),
         )
+
+    async def chat_stream(
+        self,
+        *,
+        model: str,
+        messages: list[ChatMessage],
+        temperature: float | None,
+    ) -> AsyncIterator[str]:
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": [message.model_dump() for message in messages],
+            "stream": True,
+        }
+        if temperature is not None:
+            body["options"] = {"temperature": temperature}
+
+        saw_content = False
+        finished = False
+        try:
+            async with self._http_client.stream(
+                "POST",
+                "/api/chat",
+                json=body,
+            ) as response:
+                if response.status_code == 404:
+                    raise ModelNotFound
+                if response.status_code >= 500:
+                    raise RuntimeUnavailable
+                if response.is_error:
+                    raise RuntimeResponseError
+
+                async for line in response.aiter_lines():
+                    if not line.strip():
+                        continue
+                    try:
+                        payload = json.loads(line)
+                    except ValueError as exc:
+                        raise RuntimeProtocolError from exc
+                    if not isinstance(payload, dict):
+                        raise RuntimeProtocolError(
+                            "Ollama returned an invalid streaming response."
+                        )
+                    if payload.get("error"):
+                        raise RuntimeResponseError
+
+                    message = payload.get("message", {})
+                    if not isinstance(message, dict):
+                        raise RuntimeProtocolError(
+                            "Ollama returned an invalid streaming message."
+                        )
+                    content = message.get("content", "")
+                    if not isinstance(content, str):
+                        raise RuntimeProtocolError(
+                            "Ollama returned invalid streaming content."
+                        )
+                    if content:
+                        saw_content = True
+                        yield content
+                    if payload.get("done") is True:
+                        finished = True
+                        break
+        except httpx.TimeoutException as exc:
+            raise RuntimeTimeout from exc
+        except httpx.RequestError as exc:
+            raise RuntimeUnavailable from exc
+
+        if not finished or not saw_content:
+            raise RuntimeProtocolError(
+                "Ollama returned an incomplete or empty streaming response."
+            )
 
     async def _request(
         self,

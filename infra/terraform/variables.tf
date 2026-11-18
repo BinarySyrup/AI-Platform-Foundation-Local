@@ -12,7 +12,30 @@ variable "api_host_port" {
 variable "api_image_name" {
   description = "Tag assigned to the locally built platform API image."
   type        = string
-  default     = "local-ai-platform-api:1.1.0"
+  default     = "local-ai-platform-api:1.2.0"
+}
+
+variable "open_webui_host_port" {
+  description = "Loopback host port published for Open WebUI."
+  type        = number
+  default     = 3000
+
+  validation {
+    condition     = var.open_webui_host_port >= 1 && var.open_webui_host_port <= 65535
+    error_message = "open_webui_host_port must be a valid TCP port between 1 and 65535."
+  }
+}
+
+variable "open_webui_image" {
+  description = "Version-pinned Open WebUI container image."
+  type        = string
+  default     = "openwebui/open-webui:0.13.4"
+}
+
+variable "open_webui_volume_name" {
+  description = "Docker volume that retains Open WebUI conversations and settings across destroy."
+  type        = string
+  default     = "local-ai-platform-open-webui-data"
 }
 
 variable "default_model" {
@@ -40,7 +63,13 @@ variable "log_level" {
 variable "ollama_image" {
   description = "Version-pinned Ollama container image."
   type        = string
-  default     = "ollama/ollama:0.35.1"
+  default     = "ollama/ollama:0.40.16"
+}
+
+variable "nvidia_visible_devices" {
+  description = "Optional NVIDIA devices for Ollama; leave empty for CPU-only Docker hosts."
+  type        = string
+  default     = ""
 }
 
 variable "ollama_volume_name" {
@@ -50,7 +79,7 @@ variable "ollama_volume_name" {
 }
 
 variable "platform_network_name" {
-  description = "Docker bridge network shared by the API and Ollama containers."
+  description = "Runtime Docker network for the API and Ollama; a -clients network is created for the API and Open WebUI."
   type        = string
   default     = "local-ai-platform"
 }
