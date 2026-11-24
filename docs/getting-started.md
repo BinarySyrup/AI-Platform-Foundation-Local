@@ -8,12 +8,18 @@ complete.
 
 ## Prerequisites
 
-- Docker Desktop is installed and running with Linux containers.
+- Windows is the primary validation host, with Docker Desktop configured for
+  WSL2 and Linux containers. Other host operating systems are unverified.
 - Terraform CLI `1.17.0` is installed.
 - Python `3.14` is optional. You only need it to run tests and code checks; the API runs inside its Docker image.
-- Plan several additional gigabytes of disk for the Docling Serve CPU image and
-  enough free memory for PDF conversion while Ollama is running. The existing
-  8 GiB RAM / 10 GiB free disk profile is not yet verified for this workload.
+- Target an 8-core modern x86-64 CPU (AVX2 preferred), 32 GiB RAM, and an SSD.
+  Configure Docker Desktop/WSL2 to make about 24 GiB of RAM available to
+  Docker. Keep at least 50 GB free in Docker's
+  data location before downloading images and models, then retain at least
+  10 GB free for temporary processing and index growth. This profile is a
+  target for validation, not a verified minimum. Validate CPU-only first. An
+  NVIDIA GPU is optional for Ollama and requires a separate validation run;
+  Docling Serve uses its CPU image.
 - You do not need an account, password, or API key.
 
 Check Docker and Terraform from PowerShell:
@@ -92,8 +98,16 @@ The API reads settings from its process environment. `.env.example` is a referen
 
 The RAG implementation will add settings for the fixed embedding model,
 Docling Serve and Qdrant service URLs, collection name, chunking, and retrieval
-limits. The exact environment variable names and defaults will be added here
-and to `.env.example` with the implementation.
+limits. The synchronous ingestion deadline will use
+`RAG_INGESTION_TIMEOUT_SECONDS`, default `120`, and a Terraform variable named
+`rag_ingestion_timeout_seconds`. These settings become available with the RAG
+implementation and will then be added to `.env.example` and the Terraform
+example variables.
+
+The initial retrieval defaults are page-aware, structure-preserving chunks
+targeting 600 tokens with 100 tokens of overlap, vector-only search, and the
+top 5 results. The relevance threshold will be set after evaluation against
+synthetic answerable and unanswerable questions.
 
 Terraform also sets these Open WebUI container values:
 
@@ -114,6 +128,18 @@ curl.exe http://127.0.0.1:8000/health
 curl.exe http://127.0.0.1:8000/v1/models
 ```
 
+After the RAG implementation is available, check RAG readiness separately:
+
+```powershell
+curl.exe http://127.0.0.1:8000/health/rag
+```
+
+The endpoint returns HTTP 200 with `ready` when recovery and RAG dependencies
+are ready; it returns HTTP 503 while recovery is running or a dependency is
+unavailable. RAG operations return HTTP 503 until then. `/health` continues to
+report API liveness independently, so direct chat can still work if Ollama is
+available.
+
 Other local apps can call the API too:
 
 - `GET /v1/models` lists models in OpenAI-compatible format.
@@ -127,6 +153,40 @@ for supported chat models. A RAG entry retrieves passages from Qdrant before
 calling the same Ollama model; the embedding model is not shown as a chat
 choice. These RAG operations are not available until implementation is
 complete.
+
+The target upload route accepts PDF files up to 1 GB (1,000,000,000 bytes)
+and waits synchronously for ingestion. The 120-second configurable deadline
+covers file transfer through completed indexing. Only one upload can run at a
+time; a concurrent upload receives HTTP 429 immediately. A 1 GB file may
+still exceed the deadline, so the practical page limit will be set after
+resource and timing validation.
+
+### Managing RAG Documents
+
+After the RAG implementation is available, manage documents through Swagger UI
+at <http://127.0.0.1:8000/docs> or with `curl.exe`. In Swagger UI, use
+**Try it out** on `POST /api/v1/knowledge/documents` and select a PDF file. Use
+the returned document ID to delete it; list documents with
+`GET /api/v1/knowledge/documents`. Open WebUI remains the chat client and does
+not provide the document-management controls.
+
+Upload a synthetic, non-sensitive PDF from PowerShell:
+
+```powershell
+curl.exe --max-time 130 -F "file=@C:\path\to\sample.pdf;type=application/pdf" http://127.0.0.1:8000/api/v1/knowledge/documents
+```
+
+List indexed documents:
+
+```powershell
+curl.exe http://127.0.0.1:8000/api/v1/knowledge/documents
+```
+
+Delete a document using the `document_id` returned by upload or listing:
+
+```powershell
+curl.exe -X DELETE http://127.0.0.1:8000/api/v1/knowledge/documents/PASTE_DOCUMENT_ID
+```
 
 Stop the containers without deleting their data:
 
@@ -146,6 +206,13 @@ docker start local-ai-platform-open-webui
 and Open WebUI data volumes. The target RAG deployment will also preserve the
 Qdrant volume containing indexed chunks and vectors. See the [Terraform
 guide](../infra/terraform/README.md) before permanently deleting retained data.
+Uploaded PDFs are processed temporarily and are not retained after ingestion.
+Keep source PDFs outside the platform if you may need to rebuild the index; if
+the Qdrant index is lost or deleted, upload the source PDFs again. Routine
+document deletion removes the indexed content from Qdrant and leaves your
+external source files unchanged. The initial release does not create Qdrant
+snapshots; the Qdrant volume persists across routine teardown but does not
+protect against volume loss.
 
 ## Running Tests & Linters
 
@@ -167,4 +234,4 @@ python -m ruff format --check .
 - **Open WebUI cannot connect:** Check `curl.exe http://127.0.0.1:8000/health`, then check `docker logs --tail 100 local-ai-platform-open-webui`.
 - **A port is already in use:** Set `api_host_port` or `open_webui_host_port` in your local `infra/terraform/terraform.tfvars` file.
 
-The `/health` route checks that the API is running; it does not check whether Ollama has finished loading a model. See the [architecture guide](architecture.md), [Terraform guide](../infra/terraform/README.md), and [Platform API guide](../platform/README.md) for more details.
+The `/health` route checks that the API is running; it does not check whether Ollama has finished loading a model or whether RAG dependencies are ready. After RAG is implemented, use `/health/rag` for RAG readiness. See the [architecture guide](architecture.md), [Terraform guide](../infra/terraform/README.md), and [Platform API guide](../platform/README.md) for more details.

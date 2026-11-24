@@ -22,15 +22,30 @@ available.
 2. Open WebUI lists direct and RAG choices for each supported Ollama chat
    model. Direct chat calls the selected model; the RAG choice retrieves
    document passages first, then calls that same model.
-3. To index a PDF, a client uploads it to FastAPI. FastAPI sends it to Docling
-   Serve for extraction, chunks the extracted text, embeds each chunk through
-   Ollama, and stores the vectors, text, and source metadata in Qdrant.
+3. To index a PDF up to 1 GB (1,000,000,000 bytes), a client uploads it to
+   FastAPI. FastAPI sends it to Docling Serve for extraction, chunks the
+   extracted text, embeds each chunk through Ollama, and stores the vectors,
+   text, and source metadata in Qdrant.
 4. For RAG chat, FastAPI embeds the latest user question with the same
    embedding model, searches Qdrant, and sends relevant source-labelled
    passages to the selected Ollama model.
 5. The API returns or streams the answer with citations. If no relevant
    passages are found, the RAG choice reports that the documents do not provide
    enough information.
+
+Uploaded PDFs are processed temporarily and are not retained by the platform.
+Users keep source files outside the platform for re-indexing. Qdrant retains
+the extracted index across routine teardown. The initial release does not
+create Qdrant snapshots: if the index is lost or deleted, recreate it by
+uploading the externally retained PDFs again. Volume persistence protects
+against routine teardown, not volume loss.
+
+PDF ingestion is synchronous with a configurable 120-second end-to-end deadline
+that includes file transfer and indexing. Only one upload runs at a time; a
+concurrent upload is rejected with HTTP 429. Temporary files and partial index
+entries are cleaned up when processing ends. The 1 GB cap is a hard ceiling;
+some smaller PDFs may time out, and the practical page limit must be measured
+on the target host.
 
 ## Architecture
 
@@ -90,9 +105,16 @@ Decision 0001](docs/decisions/0001-local-rag-architecture.md).
 | Persistent storage | Ollama model, Open WebUI data, and Qdrant data Docker volumes |
 | Tests and linting | pytest `9.2.0`, Ruff `0.17.3` |
 
-Docling Serve's CPU image is several gigabytes. The 8 GiB RAM / 10 GiB free
-disk validation profile remains unverified and must be measured with document
-conversion and inference workloads.
+The primary validation host is Windows with Docker Desktop, WSL2, and Linux
+containers. Its target profile is an 8-core modern x86-64 CPU (AVX2 preferred),
+32 GiB RAM with about 24 GiB available to Docker, and SSD storage with at least
+50 GB free before image and model downloads. Keep at least 10 GB free after
+setup for temporary processing and index growth. Validate CPU-only first; an
+NVIDIA GPU is optional for Ollama and is a separate validation profile.
+Docling Serve uses its CPU image. The target remains unverified until the
+document-conversion and inference workload passes on it. Validate with the
+default `llama3.1:8b` model while a representative PDF is ingested and a chat
+request runs concurrently; record peak resources and chat latency.
 
 ## Getting Started
 

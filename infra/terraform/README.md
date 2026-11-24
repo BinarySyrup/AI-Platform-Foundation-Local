@@ -20,9 +20,13 @@ overrides; the copy is ignored by Git.
 
 ## Provision
 
-Prerequisites are Terraform 1.17.0 and a running Docker Engine. From the
-repository root, initialize and validate the configuration, then review the
-plan before applying it:
+Prerequisites are Terraform 1.17.0 and a running Docker Engine. The primary
+validation host is Windows with Docker Desktop, WSL2, and Linux containers. The
+target is an 8-core x86-64 CPU, 32 GiB RAM with about 24 GiB available to Docker,
+and SSD storage with 50 GB free before setup and at least 10 GB afterward.
+Validate CPU-only first; GPU setups are a separate profile. From the repository
+root, initialize and validate the configuration, then review the plan before
+applying it:
 
 ```powershell
 terraform -chdir=infra/terraform init
@@ -75,6 +79,13 @@ curl.exe http://127.0.0.1:8000/api/v1/models
 curl.exe http://127.0.0.1:8000/v1/models
 ```
 
+Once the RAG API is implemented, verify its separate readiness endpoint with
+`curl.exe http://127.0.0.1:8000/health/rag`. A ready response requires startup
+recovery to finish and Qdrant, Docling Serve, and the Ollama embedding model to
+be available. The endpoint returns HTTP 503 until those conditions are met,
+and RAG routes remain unavailable during that time. `/health` reports API
+liveness independently; direct chat may work while RAG is unavailable.
+
 Open the chat interface at `http://127.0.0.1:3000`. It calls the API at
 `http://api:8000/v1` on the private client network. The placeholder API key in
 the Open WebUI configuration is ignored by the unauthenticated platform API;
@@ -86,8 +97,23 @@ bridge network and is not exposed to the host.
 The target RAG deployment makes Docling Serve and Qdrant reachable only by the
 API on a separate private RAG network. The API sends uploaded PDF files to
 Docling Serve's file-conversion endpoint and must not use its URL-fetch
-endpoint. The RAG configuration also applies explicit file-size, page-count,
-timeout, and concurrency limits.
+endpoint. Synchronous ingestion has a hard 1 GB (1,000,000,000 bytes)
+file-size ceiling and a configurable 120-second end-to-end deadline. The
+deadline is controlled by `RAG_INGESTION_TIMEOUT_SECONDS` and the planned
+Terraform variable `rag_ingestion_timeout_seconds`. One upload runs at a time;
+additional uploads are rejected with HTTP 429 rather than queued. The API
+streams uploads to per-upload scratch directories in the API container's
+writable filesystem, not a named volume. It removes scratch data and partial
+index points on all terminal paths, and sweeps abandoned scratch directories
+at startup. Startup also deletes all points for documents with pending chunks
+before enabling RAG operations. A practical page-count limit remains subject to validation;
+the 1 GB ceiling does not guarantee completion within 120 seconds.
+
+The starting retrieval configuration uses page-aware chunks targeting 600
+tokens with 100 tokens of overlap, vector-only search, and the top 5 results.
+Set the relevance threshold after evaluating synthetic answerable and
+unanswerable questions. Chunk-size or overlap changes require rebuilding the
+Qdrant index.
 
 ## Teardown and Retention
 
@@ -126,8 +152,13 @@ docker volume rm local-ai-platform-qdrant-data
 Run the Ollama command only when permanent model deletion is intended. Run the
 Open WebUI command only when permanent conversation and settings deletion is
 intended. Run the Qdrant command only when permanent document-index deletion
-is intended. This removes indexed content. The raw-PDF retention policy must
-be confirmed before implementation.
+is intended. This removes indexed chunks, vectors, and metadata. Original PDFs
+are processed transiently and are not retained after ingestion; keep source
+files outside the platform if you may need to rebuild the index. The initial
+release does not create Qdrant snapshots. Rebuilding a deleted or lost index
+requires recreating the collection and uploading those source PDFs again. The
+Qdrant volume persists across routine teardown but does not protect against
+volume loss.
 
 If the Ollama image remains cached after teardown, confirm no other container
 uses it before removing it:

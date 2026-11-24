@@ -47,6 +47,10 @@ The release includes:
 - Persistent storage for indexed document chunks, vectors, and source metadata in Qdrant.
 - Persistent Open WebUI chat history and settings, separate from the stateless API.
 - PDF ingestion through the official Docling Serve API, running in its own container.
+- Synchronous PDF upload and indexing, with a hard file-size ceiling of 1 GB
+  (1,000,000,000 bytes) and one active upload at a time.
+- A configurable 120-second end-to-end ingestion deadline, with temporary-file
+  and partial-index cleanup on success, failure, timeout, and cancellation.
 - Ollama-backed embeddings using the fixed `nomic-embed-text:v1.5` model.
 - A RAG variant for supported chat models in the OpenAI-compatible model list; each RAG variant uses the same underlying Ollama generation model as its direct-chat variant.
 - Document listing, deletion, search, and RAG chat operations through FastAPI.
@@ -119,14 +123,18 @@ for current model details. Do not use a floating `latest` tag. Record the
 resolved model digest during deployment validation, and keep the model
 configurable through Docker deployment settings.
 
-The CPU-only validation target is an x86-64 host with 8 GiB of RAM and
-at least 10 GiB of free disk space. This is a target profile, not a verified
-minimum requirement. The Docling Serve CPU image is large and runs alongside
-Ollama and Qdrant, so validate total disk and peak memory use during ingestion
-and inference. Record the tested host OS, CPU, memory, free disk, and measured
-peak resource use before claiming the profile as supported. Pin the Docling
-Serve and Qdrant image versions and digests before release; do not use floating
-image tags.
+The primary validation host is Windows with Docker Desktop configured for WSL2
+and Linux containers; other host operating systems remain unverified. The
+target profile is a modern 8-core x86-64 CPU with AVX2 preferred, 32 GiB of host
+RAM with about 24 GiB available to Docker, and SSD storage. Keep at least 50 GB
+free in Docker's data location before downloading images and models, then
+retain at least 10 GB free after setup for temporary processing and index
+growth. This is a target profile, not a verified minimum. Validate CPU-only
+first; an NVIDIA GPU is optional for Ollama and requires separate validation.
+Docling Serve uses its CPU image. Record the tested host OS, CPU, memory, free
+disk, peak resource use, and workload results before claiming the profile as
+supported. Pin the Docling Serve and Qdrant image versions and digests before
+release; do not use floating image tags.
 
 ## 5. High-Level Architecture
 
@@ -166,11 +174,27 @@ has a host port.
    or Qdrant are unavailable, RAG requests fail visibly rather than silently
    falling back to direct chat.
 
-Document ingestion follows a separate path: FastAPI accepts a bounded PDF
-upload, sends it to Docling Serve's file-conversion endpoint, preserves page
-and source metadata, chunks the extracted content, embeds each chunk through
-Ollama, and stores the chunk text, vector, and metadata in Qdrant. URL-based
-conversion is not used.
+Document ingestion follows a separate synchronous path: FastAPI accepts a PDF
+up to 1 GB (1,000,000,000 bytes), streams it to temporary storage, sends it to
+Docling Serve's file-conversion endpoint, preserves page and source metadata,
+chunks the extracted content, embeds each chunk through Ollama, and stores the
+chunk text, vector, and metadata in Qdrant. The full operation, including file
+transfer, has a configurable 120-second deadline. Only one upload runs at a
+time; another concurrent request receives HTTP 429 immediately and is not
+queued. On success, failure, timeout, or cancellation, temporary files are
+removed and partial Qdrant points are cleaned up. The 1 GB ceiling does not
+guarantee completion within 120 seconds; establish and validate the page-count
+limit on the target host. URL-based conversion is not used.
+
+FastAPI uses one unique temporary directory per upload in the API container's
+writable filesystem, not a persistent volume. Normal cleanup removes it, and
+the API startup sweep removes abandoned upload directories before enabling RAG
+ingestion. Qdrant points are marked `pending` while a document is indexed;
+search and listing expose only `ready` documents. At startup, document IDs with
+any pending points are identified, and all points for those documents are
+deleted before RAG operations become available. This also removes a document
+if a crash interrupts publishing its ready state. The initial cleanup design
+assumes one API container and worker.
 
 Clients interact with the platform API rather than depending directly on Ollama-specific interfaces.
 
@@ -288,6 +312,24 @@ This is a liveness check and does not call Ollama. A successful response is:
 {"status":"ok"}
 ```
 
+#### RAG readiness
+
+```http
+GET /health/rag
+```
+
+**Purpose:** Report whether RAG operations can be served. This separate
+readiness check reports an overall `starting`, `ready`, or `unavailable`
+status and the state of the RAG dependencies. It is `starting` while startup
+recovery removes abandoned upload files and incomplete Qdrant documents. It
+becomes `ready` only after recovery has completed and Qdrant, Docling Serve,
+and the Ollama embedding model are available. It returns HTTP 200 when ready
+and HTTP 503 while starting or unavailable. RAG routes also return HTTP 503
+until readiness is established. The API continues serving liveness and direct
+chat while RAG recovery runs; the liveness endpoint remains independent of RAG
+dependencies, and direct chat can continue when Ollama is available even if
+RAG is not ready.
+
 ### 7.3 List Models
 
 ```http
@@ -399,13 +441,33 @@ POST   /api/v1/knowledge/search
 POST   /api/v1/rag/chat
 ```
 
-The upload endpoint accepts bounded PDF files only. FastAPI sends file content
-to Docling Serve; it does not accept remote URLs for conversion. The API stores
-the extracted text chunks, vectors, and source metadata in Qdrant. Search
-returns source identifiers and page metadata for verification. Deleting a
-document removes all of its chunks from Qdrant. The native RAG chat endpoint
-returns an answer and structured source references; the OpenAI-compatible RAG
-entry returns citations in the answer text so Open WebUI can display them.
+The upload endpoint accepts PDF files up to 1 GB (1,000,000,000 bytes) as a
+`multipart/form-data` upload with a `file` field and processes each upload
+synchronously. Users can manage documents through Swagger UI at `/docs` or with
+`curl.exe`; Open WebUI remains the chat client and does not provide document
+management controls. The configurable end-to-end deadline is 120
+seconds by default. A second concurrent upload is rejected with HTTP 429 and
+is not queued. FastAPI streams the upload to temporary storage and sends it to
+Docling Serve; it does not accept remote URLs for conversion. Temporary files
+and partially indexed points are cleaned up on success, failure, timeout, and
+cancellation. On startup, abandoned temporary upload directories are removed;
+document IDs with any pending Qdrant points are identified and all their
+points are deleted before RAG routes become available. The API stores
+extracted text chunks, vectors, and source
+metadata in Qdrant. Search returns source identifiers and page metadata for
+verification. Deleting a document removes all of its chunks from Qdrant. The
+native RAG chat endpoint returns an answer and structured source references;
+the OpenAI-compatible RAG entry returns citations in the answer text so Open
+WebUI can display them. A practical page-count limit must be established by
+resource and timing validation; the 1 GB ceiling alone does not guarantee a
+file will finish within the deadline.
+
+FastAPI calculates a SHA-256 digest while streaming each upload and uses it as
+the stable document ID. A newly indexed document returns HTTP 201. Uploading
+identical bytes again returns HTTP 200 with the existing document metadata and
+does not create duplicate chunks. The first successful upload's filename
+remains the canonical source name. A matching filename with different bytes
+creates a separate document and does not replace the existing document.
 
 The RAG path uses the latest user message as the retrieval query. A request
 with no relevant document matches returns a clear no-support response instead
@@ -417,9 +479,12 @@ Qdrant failure returns an error rather than bypassing retrieval.
 Swagger UI must be available at `/docs`, backed by the generated OpenAPI
 specification at `/openapi.json`. ReDoc is available at `/redoc`. Users can
 inspect the API operations and submit requests through Swagger UI's **Try it
-out** controls. Include a `POST /api/v1/chat` example using the default model,
-one user message, and temperature `0`. Open WebUI is the selected chat client;
-custom frontend development is out of scope.
+out** controls, including selecting a PDF file for
+`POST /api/v1/knowledge/documents`. Include a `POST /api/v1/chat` example using
+the default model, one user message, and temperature `0`. The Getting Started
+guide documents `curl.exe` examples for PDF upload, listing, and deletion.
+Open WebUI is the selected chat client; custom frontend development is out of
+scope.
 
 ## 8. Configuration
 
@@ -433,11 +498,12 @@ Application configuration will be supplied through environment variables and doc
 | `API_PORT` | Application listening port |
 | `LOG_LEVEL` | Application logging verbosity |
 | `REQUEST_TIMEOUT_SECONDS` | Timeout for runtime requests |
+| `RAG_INGESTION_TIMEOUT_SECONDS` | End-to-end synchronous PDF upload and indexing deadline; defaults to 120 seconds and is configurable through Terraform |
 | `EMBEDDING_MODEL` | Fixed Ollama embedding model; `nomic-embed-text:v1.5` |
 | `DOCLING_BASE_URL` | Internal URL of the Docling Serve CPU container |
 | `QDRANT_URL` | Internal URL of the Qdrant service |
 | `QDRANT_COLLECTION` | Collection containing indexed document chunks |
-| `RAG_TOP_K` | Maximum number of retrieved chunks added to a prompt |
+| `RAG_TOP_K` | Maximum number of retrieved chunks added to a prompt; initial default is 5 |
 | `RAG_SCORE_THRESHOLD` | Minimum retrieval relevance required to use document context |
 
 The application reads process environment variables directly. `.env.example`
@@ -447,19 +513,34 @@ Infrastructure configuration will use Terraform variables, with example values d
 
 Configuration loading and precedence must be documented; `.env.example` is a reference template, not an automatically loaded configuration mechanism.
 
-Chunk size, overlap, retrieval count, and relevance threshold must be set and
-validated against a synthetic document evaluation set before release. The
-release requires no secrets. Any secrets introduced during future development
-must not be committed to the repository.
+The initial chunking profile preserves Docling paragraph and heading
+boundaries, keeps chunks within one PDF page, targets 600 tokens per chunk,
+and overlaps adjacent chunks by 100 tokens. Retrieval uses vector search only
+and starts with the top 5 results; hybrid search and reranking are out of scope
+for the initial release. Validate the chunking and retrieval behavior against
+a synthetic evaluation set with answerable and unanswerable questions. Set
+`RAG_SCORE_THRESHOLD` from those results before release, checking retrieved
+content, page citations, and no-support behavior. Changing chunk size or
+overlap requires rebuilding the Qdrant index. The release requires no secrets.
+Any secrets introduced during future development must not be committed to the
+repository.
+
+The 1 GB upload cap is a hard maximum. The practical page-count limit must be
+set after measuring conversion, embedding, and indexing time and peak resource
+use on the target host. `RAG_INGESTION_TIMEOUT_SECONDS` covers the full upload
+request and is configured separately from `REQUEST_TIMEOUT_SECONDS`.
 
 ## 9. Persistence and Data Lifecycle
 
 The release requires persistent storage for Ollama model artifacts, Open WebUI
 conversation history and settings, and Qdrant's indexed document chunks,
-vectors, and source metadata. FastAPI does not persist conversations. The raw
-PDF retention policy must be explicit before implementation; the proposed
-default is to process uploads transiently and require the user to retain source
-PDFs outside the platform for re-indexing.
+vectors, and source metadata. FastAPI does not persist conversations. Uploaded
+PDFs are processed transiently and are not retained after ingestion. Users
+keep source PDFs outside the platform if they may need to rebuild the index.
+Temporary upload and conversion files must be removed after processing,
+including failure paths. The initial release does not create Qdrant snapshots;
+rebuild a lost index by uploading the source PDFs again. The Qdrant volume
+persists across routine teardown but does not protect against volume loss.
 
 Model data must survive:
 
@@ -471,8 +552,9 @@ Model data must survive:
 Model artifacts must be deleted only through a documented, explicit cleanup
 process. Indexed documents are removed through the document deletion API or by
 an explicit Qdrant volume cleanup. Routine Terraform teardown preserves the
-Qdrant volume. If the index is permanently deleted, source PDFs will be needed
-to rebuild it.
+Qdrant volume. The deletion API removes indexed chunks and metadata; it does
+not affect the user's external source PDF. If the index is lost or permanently
+deleted, users must upload their source PDFs again to rebuild it.
 
 The Ollama container mounts a named Docker volume that is not managed as a
 Terraform resource. Routine `terraform destroy` removes the container while
@@ -504,6 +586,14 @@ The release must:
   endpoint, which could otherwise fetch arbitrary network locations.
 - Set explicit upload-size, page-count, processing-time, and concurrency
   limits for document conversion.
+- Enforce a 1 GB PDF ceiling, a configurable 120-second synchronous ingestion
+  deadline, and one active upload; reject concurrent uploads with HTTP 429
+  without queuing.
+- Stream uploads to bounded temporary storage rather than loading a complete
+  PDF into memory, and remove temporary files and partial index points on all
+  terminal paths. Sweep abandoned API scratch directories and delete all
+  points for documents with pending chunks at startup before enabling RAG
+  operations.
 - Treat extracted document text as untrusted prompt context. Do not log
   document content, prompts, retrieved chunks, or model responses by default.
 - Keep RAG, parsing, embedding, and vector storage local to Docker.
@@ -524,14 +614,17 @@ Inference latency and supported model size depend on available CPU, memory, stor
 
 The setup documentation must identify:
 
-- Supported local environment.
+- Primary validation environment: Windows with Docker Desktop configured for
+  WSL2 and Linux containers. Other host operating systems remain unverified.
 - Docker Engine, Terraform 1.17.0, Docker provider 4.6.0, and Python 3.14.
 - The official Docling Serve CPU container and Qdrant image, each pinned to an
   explicit version and digest before release.
 - The `nomic-embed-text:v1.5` Ollama model and its resolved digest.
 - Application image build steps.
-- The reference validation profile: CPU-only x86-64, 8 GiB RAM, and at least
-  10 GiB free disk; record actual test results before treating it as verified.
+- The target validation profile: modern 8-core x86-64 CPU, AVX2 preferred,
+  32 GiB host RAM with about 24 GiB available to Docker, and SSD storage with
+  50 GB free before setup and at least 10 GB free after setup. Record test
+  results before treating it as verified.
 - Network access required to download dependencies, images, and model artifacts.
 
 ### 11.2 Provision Infrastructure
@@ -602,8 +695,14 @@ Unit tests should cover:
 - Runtime-to-platform response normalization.
 - Configuration handling.
 - Error and timeout mapping.
+- PDF-only upload validation at the 1 GB boundary, including streamed size
+  enforcement and rejection of unsupported or malformed files.
+- The configurable 120-second end-to-end deadline, concurrent-upload rejection,
+  temporary-file cleanup, rollback of partial Qdrant indexing, and startup
+  recovery after an interrupted upload.
 - Document parser response mapping and page metadata preservation.
-- Deterministic PDF chunking and document idempotency/deletion.
+- Deterministic PDF chunking; SHA-256 duplicate behavior, idempotent retries,
+  and document deletion.
 - Embedding request translation and vector-store upsert/search/delete behavior.
 - Direct-versus-RAG model alias routing, no-match behavior, citation formatting,
   and dependency failure handling.
@@ -619,6 +718,12 @@ After deployment, verify the environment through the API published on
 - Docling Serve converts a synthetic PDF and preserves its source/page metadata.
 - FastAPI embeds chunks and queries with `nomic-embed-text:v1.5` and Qdrant
   returns expected source chunks.
+- On the primary CPU-only host profile, ingest a representative synthetic PDF
+  at the practical page limit with `llama3.1:8b`, `nomic-embed-text:v1.5`,
+  Docling Serve, and Qdrant running. Confirm ingestion completes within 120
+  seconds without exhausting memory or disk, and a chat request completes
+  during ingestion; record peak resource use and chat latency. Validate an
+  NVIDIA GPU configuration separately if it is part of the tested setup.
 - A RAG model entry uses the selected Ollama chat model and cites retrieved
   passages; a direct entry does not invoke retrieval.
 - Deleting a document removes its chunks, and routine teardown/re-apply retains
@@ -646,10 +751,11 @@ Static type checking with MyPy or Pyright is optional for this release.
 | Insufficient local compute or memory | Slow inference or model load failures | Validate with a small model and document tested hardware |
 | Large model downloads | Longer setup times and increased disk usage | Document download sizes and persist model artifacts |
 | Docling CPU processing competes with Ollama | Slow ingestion or inference and memory pressure | Validate peak resource use on the reference host; bound file pages, size, and concurrency |
-| Parser image and baked models exceed disk target | Deployment cannot fit the documented host profile | Measure image and volume sizes before claiming the 10 GiB disk target |
+| Parser image and baked models exceed disk target | Deployment cannot fit the documented host profile | Measure image and volume sizes against the 50 GB pre-setup free-space target |
 | Embedding model or vector schema changes | Existing vectors cannot be compared consistently | Keep one embedding model per collection and re-embed on version changes |
 | Retrieved content contains hostile instructions | Model may follow untrusted document text | Delimit retrieved passages as untrusted context and test prompt-injection examples |
 | Document deletion is incomplete | Removed sources remain retrievable | Delete by stable document ID across all Qdrant chunks and verify with search |
+| Synchronous ingestion exceeds its deadline | Uploads fail or leave incomplete entries | Bound request size, permit one active upload, clean up partial state, and validate a practical page limit against the 120-second default |
 | Runtime API changes | Model-listing or chat failures | Isolate the runtime adapter and verify the pinned runtime in Docker |
 | Destructive storage lifecycle | Loss of downloaded models | Separate retention from routine teardown and verify cleanup behavior |
 | Nondeterministic model output | Unreliable deployment checks | Verify successful responses without requiring exact generated wording |

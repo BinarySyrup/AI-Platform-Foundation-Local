@@ -11,6 +11,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add the local PDF RAG target architecture, Docling Serve and Qdrant roles,
   embedding-model decision, API workflow, operational constraints, and ADR.
+- Decide to process uploaded PDFs transiently, keep originals user-managed
+  outside the platform, and persist the extracted Qdrant index. Select
+  re-uploading those PDFs as the initial release's index recovery method;
+  snapshots and automated Qdrant backups are out of scope.
+- Define synchronous PDF ingestion with a 1 GB (1,000,000,000-byte) hard
+  upload ceiling, a configurable 120-second end-to-end deadline, one active
+  upload, and temporary file/partial-index cleanup.
+- Set Windows with Docker Desktop/WSL2 as the primary validation environment
+  and define an 8-core x86-64, 32 GiB RAM target with about 24 GiB available to
+  Docker and SSD storage with 50 GB free before setup and at least 10 GB after.
+- Define exact-byte PDF deduplication using a streaming SHA-256 digest, with
+  retries reusing the existing index and new bytes treated as a separate file.
+- Define crash cleanup using API-container scratch directories and startup
+  removal of abandoned files and pending Qdrant points before RAG is enabled.
+- Keep `/health` as API liveness and add a separate RAG readiness endpoint;
+  gate RAG routes with HTTP 503 until recovery and dependencies are ready.
+- Set the initial retrieval baseline to page-aware 600-token chunks with
+  100-token overlap, vector-only search, and top 5 results; calibrate the
+  relevance threshold against a synthetic evaluation set before release.
+- Document Swagger UI and `curl.exe` workflows for uploading, listing, and
+  deleting RAG documents.
 - Record that RAG implementation and Terraform resources are still pending.
 
 ## [1.2.0] - 2026-11-17

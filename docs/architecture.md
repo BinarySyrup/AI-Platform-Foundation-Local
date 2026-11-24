@@ -75,8 +75,10 @@ model requires rebuilding the Qdrant collection from the source PDFs.
 
 ## Document Ingestion Flow
 
-1. A local client uploads a PDF to FastAPI. FastAPI validates the file type,
-   upload size, page limit, and request timeout.
+1. A local client uploads a PDF up to 1 GB (1,000,000,000 bytes) to FastAPI.
+   FastAPI validates the file type, size, page limit, and 120-second
+   configurable end-to-end ingestion deadline. The page limit is set after
+   resource validation.
 2. FastAPI sends the file to Docling Serve's file-conversion API over the
    private RAG network. URL-based conversion is not used.
 3. Docling Serve returns structured extracted text and metadata. FastAPI keeps
@@ -84,14 +86,42 @@ model requires rebuilding the Qdrant collection from the source PDFs.
 4. FastAPI chunks the extracted text deterministically and embeds each chunk
    through Ollama using `nomic-embed-text:v1.5`.
 5. FastAPI stores each vector with its text, stable document ID, source name,
-   and page/chunk metadata in Qdrant.
+   and page/chunk metadata in Qdrant. The document ID is the SHA-256 digest of
+   the uploaded PDF bytes, calculated as the request streams in.
 
 The initial release accepts PDF files. Scanned-PDF OCR is deferred until
 resource use and page-citation quality are validated on the target host. Qdrant
-retains extracted chunks, vectors, and source metadata. The proposed default
-is to process original PDFs transiently and require operators to keep their
-source files for re-indexing; confirm this retention policy before
-implementation.
+retains extracted chunks, vectors, and source metadata. Original PDFs are
+processed transiently and are not retained after ingestion. Users keep source
+PDFs outside the platform if they may need to rebuild the index.
+Temporary upload and conversion files must be removed after processing,
+including failure paths. The initial release does not create Qdrant snapshots.
+If the index is lost, rebuild it by uploading the source PDFs again. Qdrant's
+Docker volume persists across routine teardown, but it is not a backup.
+
+Ingestion is synchronous and permits one active upload. A concurrent upload is
+rejected immediately with HTTP 429 rather than queued. The
+`RAG_INGESTION_TIMEOUT_SECONDS` setting defaults to 120 and covers file transfer,
+conversion, chunking, embedding, and indexing. If the deadline expires or
+processing fails, the API removes temporary files and partial index points.
+Each upload uses a unique temporary directory in the API container's writable
+filesystem, not a persistent volume; normal cleanup removes it, and API startup
+clears leftovers from a prior process before enabling RAG operations. Qdrant
+points remain `pending` until indexing completes, and retrieval/listing expose
+only `ready` documents. Startup finds document IDs with any pending points and
+removes all points for those documents, including any partially published
+ready points. This cleanup model assumes one API container and worker.
+The 1 GB upload ceiling does not imply every allowed file will finish within
+the deadline; validate a practical page limit and resource use on the target
+host.
+
+The initial retrieval profile chunks Docling's extracted paragraphs and
+headings within PDF page boundaries, targeting 600 tokens per chunk with 100
+tokens of overlap. It uses vector-only search and adds the top 5 chunks to the
+prompt. Hybrid search and reranking are deferred. Calibrate the relevance
+threshold with synthetic answerable and unanswerable questions before release;
+check retrieved passages, page citations, and no-support behavior. Changing
+chunk size or overlap requires rebuilding the Qdrant index.
 
 ## RAG Chat Flow
 
@@ -118,15 +148,31 @@ strictly grounded in retrieved document passages.
 The API provides local operations for PDF upload, document listing and
 deletion, retrieval search, and RAG chat. It also retains the existing
 `/api/v1/chat` and OpenAI-compatible direct chat contracts. Document deletion
-removes every matching point from Qdrant. RAG answers include readable
+removes every matching point from Qdrant. A new document upload returns HTTP
+201; re-uploading identical bytes returns HTTP 200 with the existing document
+metadata and reuses its index. The first successful upload's filename remains
+canonical. The same filename with different PDF bytes creates a separate
+document rather than replacing the existing one. RAG answers include readable
 citations; the platform-native RAG response also returns structured source
 metadata.
+
+`GET /health` remains an API liveness check and does not depend on RAG services.
+`GET /health/rag` reports `starting`, `ready`, or `unavailable` along with RAG
+dependency status. RAG becomes ready only after startup cleanup has completed
+and Qdrant, Docling Serve, and the Ollama embedding model are available. The
+readiness endpoint returns HTTP 200 only when ready and HTTP 503 otherwise;
+RAG routes return HTTP 503 until then. Direct chat can remain available while
+RAG is starting or unavailable if Ollama is available. API liveness and direct
+chat remain served while startup recovery runs.
 
 Ollama model files, Qdrant vectors and chunks, and Open WebUI conversations use
 separate named Docker volumes. Routine `terraform destroy` removes service
 containers and networks but preserves these volumes. Permanent data removal is
 a separate explicit cleanup operation documented in the Terraform guide.
-Docling Serve is a conversion service, not a document archive.
+Docling Serve is a conversion service, not a document archive. The platform
+does not retain the original PDF files. Deleting a document from the API
+removes its indexed chunks and metadata from Qdrant; it does not affect the
+user's copy outside the platform.
 
 ## Security and Resource Constraints
 
@@ -141,9 +187,16 @@ Docling Serve is a conversion service, not a document archive.
   content, prompts, retrieved chunks, or model responses by default.
 - Use synthetic or non-sensitive data only. The project is not designed or
   claimed to be compliant for regulated data.
+- The primary validation host is Windows with Docker Desktop, WSL2, and Linux
+  containers. Validate the 8-core x86-64, 32 GiB RAM target with about 24 GiB
+  available to Docker, 50 GB free before setup, and at least 10 GB free after
+  setup. Use CPU-only as the baseline; validate NVIDIA GPU setups separately.
 - Docling's CPU image and bundled parsing models add substantial disk and
-  memory use. Validate the 8 GiB RAM / 10 GiB free disk target while parsing
-  and generating concurrently before calling it supported.
+  memory use. With `llama3.1:8b`, `nomic-embed-text:v1.5`, Docling Serve, and
+  Qdrant running, test a representative PDF at the practical page limit while
+  issuing a chat request. Confirm ingestion completes within 120 seconds
+  without exhausting memory or disk, and record peak resources and chat
+  latency before calling the profile supported.
 
 See [Architecture Decision 0001](decisions/0001-local-rag-architecture.md) for
 the alternatives and rationale. For image versions, configuration, and
