@@ -1,13 +1,17 @@
 # Terraform Deployment
 
 This configuration uses Terraform 1.17.0 and the Docker provider 4.6.0 to build
-the FastAPI image and manage Open WebUI, Ollama, two Docker networks, and
-persistent data volumes. Open WebUI uses the pinned
+the FastAPI image and manage Open WebUI, Ollama, Docker networks, and
+persistent data volumes. The target RAG deployment adds the official Docling
+Serve CPU image `ghcr.io/docling-project/docling-serve-cpu` and Qdrant image
+`qdrant/qdrant`. Open WebUI uses the pinned
 `openwebui/open-webui:0.13.4` image, and Ollama uses the pinned
-`ollama/ollama:0.40.16` image. The API shares a client network
-with Open WebUI and a separate runtime network with Ollama, so the UI reaches
-the model through the API. The API and Open WebUI are published on loopback;
-Ollama has no host port.
+`ollama/ollama:0.40.16` image. The API shares a client network with Open
+WebUI, a runtime network with Ollama, and a RAG network with Docling Serve and
+Qdrant. Only FastAPI can reach the runtime and RAG services. The API and Open
+WebUI are published on loopback; Ollama, Docling Serve, and Qdrant have no host
+ports. RAG Terraform resources are part of the target scope and remain pending
+implementation.
 
 Terraform uses local state in this directory. State, provider data, plans, and
 environment-specific variable files are excluded from version control. Copy
@@ -33,6 +37,9 @@ excludes local configuration, Terraform state, model data, and development
 artifacts from the build context. The apply outputs `api_url` and
 `open_webui_url` point to the loopback-only services.
 
+Before RAG deployment is implemented, pin the official Docling Serve CPU and
+Qdrant image versions and digests; do not use floating tags.
+
 ## Optional NVIDIA GPU
 
 GPU access is disabled by default. Leave `nvidia_visible_devices` empty for a
@@ -52,10 +59,12 @@ model explicitly after the container starts:
 
 ```powershell
 docker exec ollama ollama pull llama3.1:8b
+docker exec ollama ollama pull nomic-embed-text:v1.5
 ```
 
-Record the resolved digest shown by `docker exec ollama ollama list` in the
-setup notes when capturing environment details.
+Record the resolved digests shown by `docker exec ollama ollama list` in the
+setup notes when capturing environment details. `nomic-embed-text:v1.5` is the
+fixed embedding model for the indexed collection; it is not a chat selection.
 
 Model downloads are intentionally not part of Terraform apply. Verify the API
 and available model list with:
@@ -74,21 +83,28 @@ the services are safe to use only within the local loopback boundary.
 Ollama is reachable by the API at `http://ollama:11434` on the private Docker
 bridge network and is not exposed to the host.
 
+The target RAG deployment makes Docling Serve and Qdrant reachable only by the
+API on a separate private RAG network. The API sends uploaded PDF files to
+Docling Serve's file-conversion endpoint and must not use its URL-fetch
+endpoint. The RAG configuration also applies explicit file-size, page-count,
+timeout, and concurrency limits.
+
 ## Teardown and Retention
 
 Routine teardown removes the networks, containers, and Terraform-managed Docker
-images. It retains model data in the Ollama volume and chats/settings in the
-Open WebUI volume:
+images. It retains model data in the Ollama volume, chats/settings in the Open
+WebUI volume, and indexed chunks/vectors in the Qdrant volume:
 
 ```powershell
 terraform -chdir=infra/terraform destroy
 ```
 
-Both containers mount named Docker volumes that are not managed as Terraform
-resources. Docker preserves their contents when containers are removed, and a
-later apply reuses the configured names. To permanently remove either set of
-data, first destroy the platform and confirm the relevant volume name with
-`docker volume ls`. To permanently remove model artifacts, use:
+The Ollama, Open WebUI, and Qdrant containers mount named Docker volumes that
+are not managed as Terraform resources. Docker preserves their contents when
+containers are removed, and a later apply reuses the configured names. To
+permanently remove data, first destroy the platform and confirm the relevant
+volume name with `docker volume ls`. To permanently remove model artifacts,
+use:
 
 ```powershell
 docker volume rm local-ai-platform-ollama-models
@@ -100,9 +116,18 @@ To permanently remove Open WebUI conversations and settings, use:
 docker volume rm local-ai-platform-open-webui-data
 ```
 
+To permanently remove indexed document chunks, vectors, and source metadata,
+use:
+
+```powershell
+docker volume rm local-ai-platform-qdrant-data
+```
+
 Run the Ollama command only when permanent model deletion is intended. Run the
 Open WebUI command only when permanent conversation and settings deletion is
-intended.
+intended. Run the Qdrant command only when permanent document-index deletion
+is intended. This removes indexed content. The raw-PDF retention policy must
+be confirmed before implementation.
 
 If the Ollama image remains cached after teardown, confirm no other container
 uses it before removing it:

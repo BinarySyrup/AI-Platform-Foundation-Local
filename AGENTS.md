@@ -35,7 +35,7 @@
 Codex Agent:        OpenAI Codex
 Model:              GPT-6-Luna (reasoning high)
 Model provider:     azure
-Thread name:        feature/open_webui
-GitHub Branch:      feature/open_webui
-codex resume 01a1eaec-8bb6-7740-ada1-65ef71e947bf
+Thread name:        Add RAG feature
+GitHub Branch:      feature/rag
+codex resume 01a20ac9-81db-7832-af99-928e3f3a1226
 -->

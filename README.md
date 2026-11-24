@@ -1,44 +1,72 @@
 # Local AI Platform Foundation
 
-Chat with a language model on your computer, or connect another app through the API.
+Chat with local language models and ground selected conversations in your own PDF documents.
 
 ## Overview
 
-This project is to run a language model locally and developers who want to connect their apps to it. It runs Open WebUI, FastAPI, and Ollama in Docker, with the API handling requests to the model.
+This project provisions a local AI platform with Terraform and Docker. Open
+WebUI is the chat client, FastAPI is the client-facing API, and Ollama runs the
+selected generation model. The release scope now includes PDF retrieval-
+augmented generation (RAG) through a separate Docling Serve CPU container and
+Qdrant vector store.
+
+The RAG path uses the selected Ollama chat model. It does not alter or duplicate
+that model. Ollama also runs the fixed `nomic-embed-text:v1.5` model to embed
+PDF chunks and user questions. The RAG implementation is planned; the current
+API and Terraform implementation must be completed before the RAG workflow is
+available.
 
 ## How It Works
 
-1. Terraform creates the Docker services, networks, and data volumes.
-2. You open Open WebUI in your browser or send a request to the API.
-3. The API sends model requests to Ollama over a private Docker network.
-4. Ollama returns the model's answer through the API.
+1. Terraform provisions Docker networks, containers, and persistent volumes.
+2. Open WebUI lists direct and RAG choices for each supported Ollama chat
+   model. Direct chat calls the selected model; the RAG choice retrieves
+   document passages first, then calls that same model.
+3. To index a PDF, a client uploads it to FastAPI. FastAPI sends it to Docling
+   Serve for extraction, chunks the extracted text, embeds each chunk through
+   Ollama, and stores the vectors, text, and source metadata in Qdrant.
+4. For RAG chat, FastAPI embeds the latest user question with the same
+   embedding model, searches Qdrant, and sends relevant source-labelled
+   passages to the selected Ollama model.
+5. The API returns or streams the answer with citations. If no relevant
+   passages are found, the RAG choice reports that the documents do not provide
+   enough information.
 
 ## Architecture
 
-Open WebUI and other clients send requests to the FastAPI service. The service talks to Ollama through an adapter, so clients do not depend on Ollama directly.
-
-### System Architecture
-
-![Local AI Platform architecture diagram](docs/images/architecture-v2.png)
-
-### Data Flow Diagram
+FastAPI remains the boundary between clients and all model and retrieval
+services. Open WebUI reaches FastAPI over the client Docker network. FastAPI
+reaches Ollama over the private runtime network and Docling Serve and Qdrant
+over the private RAG network. Only FastAPI can reach those internal services;
+their ports are not published to the host.
 
 ```mermaid
 flowchart LR
-    Terraform[Terraform + Docker provider]
-    Browser[Your browser] --> UI[Open WebUI]
-    Client[Other apps] --> API[FastAPI API]
+    Browser[Browser] --> UI[Open WebUI]
+    Client[Other local clients] -->|Loopback HTTP| API[FastAPI platform API]
     UI -->|OpenAI-compatible API| API
-    API --> Adapter[Ollama adapter]
-    Adapter -->|Private Docker network| Ollama[Ollama]
-    Ollama --> Models[(Model files volume)]
-    UI --> Chats[(Chat and settings volume)]
-    Terraform -. provisions .-> UI
-    Terraform -. provisions .-> API
+
+    subgraph runtime[Private runtime network]
+        API -->|Generation and embeddings| Ollama[Ollama]
+        Ollama --> ModelData[(Persistent model files)]
+    end
+
+    subgraph rag[Private RAG network]
+        API -->|PDF conversion| Docling[Docling Serve CPU]
+        API -->|Vector search| Qdrant[Qdrant]
+        Qdrant --> VectorData[(Persistent chunks, vectors, metadata)]
+    end
+
+    UI --> ChatData[(Persistent chats and settings)]
+    Terraform[Terraform + Docker provider] -. provisions .-> API
     Terraform -. provisions .-> Ollama
+    Terraform -. provisions .-> Docling
+    Terraform -. provisions .-> Qdrant
+    Terraform -. provisions .-> UI
 ```
 
-See the [full architecture guide](docs/architecture.md).
+See the [full architecture guide](docs/architecture.md) and [Architecture
+Decision 0001](docs/decisions/0001-local-rag-architecture.md).
 
 ## Tech Stack
 
@@ -55,13 +83,21 @@ See the [full architecture guide](docs/architecture.md).
 | Platform API image | `local-ai-platform-api:1.2.0` (built locally) |
 | Open WebUI image | `openwebui/open-webui:0.13.4` |
 | Ollama image | `ollama/ollama:0.40.16` |
-| Default model | `llama3.1:8b` |
-| Persistent storage | Docker volumes `local-ai-platform-ollama-models` and `local-ai-platform-open-webui-data` |
+| Default generation model | `llama3.1:8b` |
+| Embedding model | Ollama `nomic-embed-text:v1.5` |
+| PDF conversion | `ghcr.io/docling-project/docling-serve-cpu`; release and digest to pin before deployment |
+| Vector store | `qdrant/qdrant`; release and digest to pin before deployment |
+| Persistent storage | Ollama model, Open WebUI data, and Qdrant data Docker volumes |
 | Tests and linting | pytest `9.2.0`, Ruff `0.17.3` |
+
+Docling Serve's CPU image is several gigabytes. The 8 GiB RAM / 10 GiB free
+disk validation profile remains unverified and must be measured with document
+conversion and inference workloads.
 
 ## Getting Started
 
-Install and start Docker Desktop and Terraform `1.17.0`. From the project folder, prepare Terraform and inspect the plan:
+Install and start Docker Desktop and Terraform `1.17.0`. From the project
+folder, prepare Terraform and inspect the plan:
 
 ```powershell
 terraform -chdir=infra/terraform init
@@ -74,12 +110,17 @@ Review the plan, then start the services:
 terraform -chdir=infra/terraform apply
 ```
 
-Download the default model once:
+Download the generation and embedding models once:
 
 ```powershell
 docker exec ollama ollama pull llama3.1:8b
+docker exec ollama ollama pull nomic-embed-text:v1.5
 ```
 
-Open the chat page at <http://127.0.0.1:3000>. The API is at <http://127.0.0.1:8000>. Both are for local use and do not have sign-in protection.
+Open the chat page at <http://127.0.0.1:3000>. The API is at
+<http://127.0.0.1:8000>. Both are for local use and do not have sign-in
+protection. RAG upload and chat operations become available when the planned
+RAG implementation is complete.
 
-For setup details, configuration, API examples, stopping services, and troubleshooting, see the [Getting Started guide](docs/getting-started.md).
+For setup details, configuration, API examples, data retention, stopping
+services, and troubleshooting, see the [Getting Started guide](docs/getting-started.md).

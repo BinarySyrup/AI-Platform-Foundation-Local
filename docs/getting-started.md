@@ -1,12 +1,19 @@
 # Getting Started
 
-Use this guide to start the Local AI Platform Foundation, connect to its API, and stop the Docker services. The platform runs on your computer through Terraform and Docker.
+Use this guide to start the Local AI Platform Foundation, connect to its API,
+and stop the Docker services. The platform runs on your computer through
+Terraform and Docker. RAG is now in the target release scope; RAG-specific
+containers and API routes are not available until their implementation is
+complete.
 
 ## Prerequisites
 
 - Docker Desktop is installed and running with Linux containers.
 - Terraform CLI `1.17.0` is installed.
 - Python `3.14` is optional. You only need it to run tests and code checks; the API runs inside its Docker image.
+- Plan several additional gigabytes of disk for the Docling Serve CPU image and
+  enough free memory for PDF conversion while Ollama is running. The existing
+  8 GiB RAM / 10 GiB free disk profile is not yet verified for this workload.
 - You do not need an account, password, or API key.
 
 Check Docker and Terraform from PowerShell:
@@ -47,9 +54,14 @@ Download the default model once:
 
 ```powershell
 docker exec ollama ollama pull llama3.1:8b
+docker exec ollama ollama pull nomic-embed-text:v1.5
 ```
 
-Terraform builds the API image `local-ai-platform-api:1.2.0` and downloads Open WebUI `openwebui/open-webui:0.13.4` and Ollama `ollama/ollama:0.40.16`.
+Terraform builds the API image `local-ai-platform-api:1.2.0` and downloads
+Open WebUI `openwebui/open-webui:0.13.4` and Ollama `ollama/ollama:0.40.16`.
+The RAG target adds the official Docling Serve CPU image and Qdrant; their
+release tags and immutable digests must be pinned before those services are
+provisioned. Record the resolved digests for both Ollama models during setup.
 
 To pull the Open WebUI image manually, run:
 
@@ -78,6 +90,11 @@ The API reads settings from its process environment. `.env.example` is a referen
 | `LOG_LEVEL` | `INFO` | How much detail the API writes to its logs. |
 | `REQUEST_TIMEOUT_SECONDS` | `120` | How long the API waits for Ollama. |
 
+The RAG implementation will add settings for the fixed embedding model,
+Docling Serve and Qdrant service URLs, collection name, chunking, and retrieval
+limits. The exact environment variable names and defaults will be added here
+and to `.env.example` with the implementation.
+
 Terraform also sets these Open WebUI container values:
 
 | Variable | Value | What it does |
@@ -104,6 +121,13 @@ Other local apps can call the API too:
 - `GET /api/v1/models` and `POST /api/v1/chat` use the platform's own API format.
 - <http://127.0.0.1:8000/docs> opens the interactive API guide.
 
+The target RAG API adds PDF upload, document listing/deletion, retrieval search,
+and a native RAG chat operation. Open WebUI will show direct and RAG entries
+for supported chat models. A RAG entry retrieves passages from Qdrant before
+calling the same Ollama model; the embedding model is not shown as a chat
+choice. These RAG operations are not available until implementation is
+complete.
+
 Stop the containers without deleting their data:
 
 ```powershell
@@ -118,7 +142,10 @@ docker start local-ai-platform-api
 docker start local-ai-platform-open-webui
 ```
 
-`terraform destroy` removes the containers and networks but keeps the model and Open WebUI data volumes. See the [Terraform guide](../infra/terraform/README.md) before permanently deleting either volume.
+`terraform destroy` removes the containers and networks but keeps the model
+and Open WebUI data volumes. The target RAG deployment will also preserve the
+Qdrant volume containing indexed chunks and vectors. See the [Terraform
+guide](../infra/terraform/README.md) before permanently deleting retained data.
 
 ## Running Tests & Linters
 
