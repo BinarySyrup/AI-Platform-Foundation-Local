@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-23
-- **Updated:** 2026-11-24 (PDF retention, ingestion limits, validation profile, readiness, index recovery, and retrieval baseline)
+- **Updated:** 2026-11-24 (PDF retention, ingestion limits, validation profile, readiness, index recovery, retrieval baseline and evaluation, index capacity, vector schema, image versions, and RAG errors)
 
 ## Context
 
@@ -17,9 +17,10 @@ traceable source references. The primary validation host is Windows with
 Docker Desktop, WSL2, and Linux containers; other host operating systems remain
 unverified. The target machine has a modern 8-core x86-64 CPU (AVX2 preferred),
 32 GiB RAM with about 24 GiB available to Docker, and SSD storage with 50 GB
-free before setup and at least 10 GB free afterward. CPU-only is the baseline;
-NVIDIA GPU setups are validated separately. The profile is not yet verified
-for Docling conversion and Ollama inference running together.
+free before setup and a provisional target of 10 GB free after setup. That
+post-setup figure is not a validated minimum or ongoing reserve. CPU-only is
+the baseline; NVIDIA GPU setups are validated separately. The profile is not
+yet verified for Docling conversion and Ollama inference running together.
 
 ## Decisions
 
@@ -50,10 +51,13 @@ The embedding model is excluded from the chat model list.
 ### Use one fixed local embedding model
 
 Ollama runs `nomic-embed-text:v1.5` to embed both document chunks and user
-queries. The selected chat model remains responsible for generation. Record
-the embedding model's resolved digest during setup. A collection uses one
-embedding model and vector schema; changing either requires rebuilding the
-index from the source PDFs.
+queries. Use its default 768-dimensional output with Qdrant Cosine distance;
+do not truncate vectors in the initial release. The selected chat model
+remains responsible for generation. Record the embedding model's resolved
+digest during setup, and validate the output dimension and collection schema
+before enabling RAG. A dimension or schema mismatch keeps RAG unavailable
+until corrected. Changing the embedding model, dimension, distance metric, or
+embedding input convention requires rebuilding the index from the source PDFs.
 
 ### Use Qdrant for local vector storage
 
@@ -79,15 +83,15 @@ accepts reprocessing time in exchange for a simpler local deployment.
 
 ### Use the official Docling Serve CPU container for PDF conversion
 
-Run the upstream `ghcr.io/docling-project/docling-serve-cpu` image separately
-from the FastAPI image. FastAPI sends PDF file uploads to its conversion API and
+Run the upstream `ghcr.io/docling-project/docling-serve-cpu:v1.38.2` image
+separately from the FastAPI image. FastAPI sends PDF file uploads to its conversion API and
 preserves returned source and page metadata. The parser has no host port and
 does not communicate directly with Ollama or Qdrant. Do not use Docling Serve's
 URL-based conversion endpoint.
 
-The image is selected as a technology, not yet pinned to a specific release
-and immutable digest. Those values must be chosen and recorded before
-deployment. Qdrant also requires a pinned version and digest.
+Use Docling Serve `v1.38.2` and record its immutable image digest before
+deployment. Use `qdrant/qdrant:v1.20.2` for Qdrant and record its immutable
+digest before deployment.
 
 ### Keep the initial ingestion format to PDF
 
@@ -155,10 +159,56 @@ are outside the initial release. These are starting values and must be
 validated with synthetic PDFs; changing chunk size or overlap requires
 rebuilding the Qdrant index.
 
-Set `RAG_SCORE_THRESHOLD` through evaluation before release rather than picking
-an arbitrary score. The synthetic evaluation set must include answerable and
-unanswerable questions. Check whether retrieval returns the expected content
-and page, and whether weak or absent matches produce the no-support response.
+Use Nomic's `search_document:` prefix for chunks and `search_query:` prefix for
+queries. During development calibration, compare the paired prefixes with raw
+inputs on a separate synthetic set of about 10 answerable and 10 unanswerable
+questions. Set `RAG_SCORE_THRESHOLD` from the resulting score ranges rather
+than choosing an arbitrary value. If relevant and irrelevant ranges overlap
+substantially, adjust retrieval instead of forcing a cutoff. Changing the
+prefix convention requires re-embedding the collection.
+
+After development, run a separate held-out quality acceptance set with 30
+questions across 6 to 10 synthetic PDFs: 20 answerable and 10 unanswerable. Pass
+when at least 18 of 20 answerable questions receive a correct answer grounded
+in retrieved evidence, every citation identifies the correct source and page,
+and all 10 unanswerable questions receive the no-support response without an
+invented answer. Do not use the held-out questions to tune retrieval settings.
+
+### Bound aggregate index growth by chunk count
+
+Configure a maximum total number of indexed chunks for the Qdrant collection
+using `RAG_MAX_INDEXED_CHUNKS` and Terraform variable
+`rag_max_indexed_chunks`. After PDF extraction and chunking, but before
+embedding or Qdrant writes, compare the existing ready chunk count plus the
+candidate document's chunk count with the configured cap. Reject an upload
+that would exceed the cap with a stable capacity-limit error and clean up its
+temporary files. Exact-byte duplicate uploads do not consume additional
+capacity; deleting a document releases its chunks. Lowering the cap does not
+delete existing documents, and new uploads remain blocked until the indexed
+count is below the cap.
+
+Set the numeric cap after measuring actual Qdrant storage growth on the target
+host. This logical chunk limit bounds indexed content approximately; it is not
+a physical Docker disk quota and cannot prevent disk use by other data or
+temporary conversion files.
+
+The initial release relies on the operator to monitor Docker host free space;
+it has no physical free-space admission check. Treat 10 GB after setup as a
+provisional planning target only. Benchmark peak temporary conversion use and
+Qdrant growth to establish an ongoing manual reserve.
+
+### Use a stable RAG error contract
+
+Use stable error codes and safe messages for RAG failures. Return HTTP 409
+`indexed_chunk_limit_exceeded` when the logical chunk cap would be exceeded,
+and HTTP 507 `insufficient_storage` only when physical storage is exhausted.
+Use 413 for the byte limit, 415 for non-PDF media, 422 for PDFs that cannot be
+processed or exceed the practical page limit, 429 for concurrent uploads, 504
+for the end-to-end ingestion deadline, 503 for RAG readiness or dependency
+unavailability, and 502 for an invalid Docling response. Include a request ID;
+translate errors to the OpenAI error shape on OpenAI-compatible routes. Error
+messages must not expose document content or internal service details. Use a
+generic HTTP 500 `internal_error` for unexpected failures.
 
 ### Separate API liveness from RAG readiness
 
@@ -208,7 +258,7 @@ independent.
 This image packages Docling Serve with additional setup and management
 conveniences. The upstream Docling Serve CPU image was selected to avoid an
 extra wrapper layer and keep the parser closer to the project that maintains
-the API. The upstream image still requires an explicit release and digest pin.
+the API. The selected `v1.38.2` image still requires an immutable digest pin.
 
 ### A RAG toggle or custom frontend
 
@@ -253,14 +303,21 @@ which generation model the user chooses.
 
 ## Implementation Gates
 
-- Pin the official Docling Serve CPU image and Qdrant to explicit releases and
-  immutable digests.
+- Record immutable digests for Docling Serve `v1.38.2` and
+  `qdrant/qdrant:v1.20.2` before deployment.
 - Verify temporary upload and conversion files are removed after success and
   failure; verify partial Qdrant points are rolled back on errors and timeout.
 - Validate the 1 GB file-size boundary, the 120-second configurable deadline,
   immediate rejection of a second upload, and a practical page-count limit on
   the target host.
 - Validate parser page limits, PDF citations, and conversion behavior.
+- Verify 768-dimensional embeddings and the Qdrant Cosine schema. Use Nomic's
+  paired retrieval prefixes, compare them with raw inputs on the separate
+  calibration set, and freeze the convention and threshold before running the
+  held-out quality acceptance set.
+- Set `RAG_MAX_INDEXED_CHUNKS` from measured Qdrant growth on the target host;
+  verify rejection before embedding/indexing, duplicate behavior, and capacity
+  recovery after document deletion.
 - Document and validate index recovery by creating a fresh Qdrant collection
   and re-uploading synthetic source PDFs after index loss.
 - On the primary CPU-only host, test the default `llama3.1:8b` model, fixed

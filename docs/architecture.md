@@ -50,14 +50,13 @@ The Docling Serve and Qdrant ports are not published to the host.
 | FastAPI platform API | Validates client requests and coordinates direct chat, document ingestion, retrieval, and RAG chat. |
 | Ollama client adapter | Isolates Ollama HTTP requests and responses, including chat generation and embeddings. |
 | Ollama | Runs the selected generation model and the fixed `nomic-embed-text:v1.5` embedding model. |
-| `ghcr.io/docling-project/docling-serve-cpu` | Converts uploaded PDFs to structured text and source metadata through its API. |
-| `qdrant/qdrant` | Stores and searches embedded text chunks and source metadata. |
+| `ghcr.io/docling-project/docling-serve-cpu:v1.38.2` | Converts uploaded PDFs to structured text and source metadata through its API. |
+| `qdrant/qdrant:v1.20.2` | Stores and searches 768-dimensional vectors with Cosine distance, plus chunk text and source metadata. |
 
-The official Docling Serve CPU container `ghcr.io/docling-project/docling-serve-cpu`
-is separate from the platform API
-image. Pin its release and immutable image digest before implementation. The
-Qdrant image must also be pinned. The exact image references are deployment
-decisions to record when implementation begins.
+The official Docling Serve CPU container
+`ghcr.io/docling-project/docling-serve-cpu:v1.38.2` is separate from the
+platform API image. Record its immutable image digest before implementation.
+Qdrant is selected at `v1.20.2`; record its immutable digest before deployment.
 
 ## Chat Model Choices
 
@@ -70,8 +69,12 @@ explicitly and never forwards an alias to Ollama.
 
 `nomic-embed-text:v1.5` is a separate fixed embedding model. It embeds both
 document chunks during ingestion and the latest user message during search.
-The embedding model is not offered as a chat choice. Changing the embedding
-model requires rebuilding the Qdrant collection from the source PDFs.
+Use its default 768-dimensional output with Qdrant Cosine distance and do not
+truncate vectors in the initial release. Validate embedding output size and
+collection schema before enabling RAG; keep RAG unavailable if they mismatch.
+The embedding model is not offered as a chat choice. Changing the model,
+vector size, distance metric, or input-prefix convention requires rebuilding
+the Qdrant collection from the source PDFs.
 
 ## Document Ingestion Flow
 
@@ -118,10 +121,25 @@ host.
 The initial retrieval profile chunks Docling's extracted paragraphs and
 headings within PDF page boundaries, targeting 600 tokens per chunk with 100
 tokens of overlap. It uses vector-only search and adds the top 5 chunks to the
-prompt. Hybrid search and reranking are deferred. Calibrate the relevance
-threshold with synthetic answerable and unanswerable questions before release;
-check retrieved passages, page citations, and no-support behavior. Changing
-chunk size or overlap requires rebuilding the Qdrant index.
+prompt. Hybrid search and reranking are deferred. Use Nomic's
+`search_document:` prefix for chunks and `search_query:` for queries. During
+development, compare the paired prefixes with raw inputs on a separate small
+synthetic calibration set and set the relevance threshold from its answerable
+and unanswerable score results. Do not use an arbitrary numeric threshold or
+the held-out quality set for tuning. Changing chunk size, overlap, or prefix
+convention requires rebuilding the Qdrant index.
+
+After development, validate end-to-end RAG quality with 30 questions across
+6 to 10 synthetic PDFs: 20 answerable and 10 unanswerable. Require at least 18
+correct, evidence-grounded answers out of 20, correct source and page for every
+citation, and the no-support response for all 10 unanswerable questions.
+
+The collection also has a configurable `RAG_MAX_INDEXED_CHUNKS` cap. After
+chunking a new PDF and before embedding or indexing, the API checks whether
+the existing ready chunks plus the new chunks fit. Over-limit uploads are
+rejected without adding points; deleting a document frees its chunk capacity.
+The numeric cap is set after measuring Qdrant growth on the target host. This
+logical limit does not enforce a physical disk quota.
 
 ## RAG Chat Flow
 
@@ -189,8 +207,10 @@ user's copy outside the platform.
   claimed to be compliant for regulated data.
 - The primary validation host is Windows with Docker Desktop, WSL2, and Linux
   containers. Validate the 8-core x86-64, 32 GiB RAM target with about 24 GiB
-  available to Docker, 50 GB free before setup, and at least 10 GB free after
-  setup. Use CPU-only as the baseline; validate NVIDIA GPU setups separately.
+  available to Docker, 50 GB free before setup, and a provisional 10 GB
+  post-setup target. Benchmark peak temporary use and Qdrant growth to set an
+  ongoing manual free-space reserve. Use CPU-only as the baseline; validate
+  NVIDIA GPU setups separately.
 - Docling's CPU image and bundled parsing models add substantial disk and
   memory use. With `llama3.1:8b`, `nomic-embed-text:v1.5`, Docling Serve, and
   Qdrant running, test a representative PDF at the practical page limit while

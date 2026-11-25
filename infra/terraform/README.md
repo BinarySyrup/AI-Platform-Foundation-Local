@@ -3,8 +3,8 @@
 This configuration uses Terraform 1.17.0 and the Docker provider 4.6.0 to build
 the FastAPI image and manage Open WebUI, Ollama, Docker networks, and
 persistent data volumes. The target RAG deployment adds the official Docling
-Serve CPU image `ghcr.io/docling-project/docling-serve-cpu` and Qdrant image
-`qdrant/qdrant`. Open WebUI uses the pinned
+Serve CPU image `ghcr.io/docling-project/docling-serve-cpu:v1.38.2` and Qdrant image
+`qdrant/qdrant:v1.20.2`. Open WebUI uses the pinned
 `openwebui/open-webui:0.13.4` image, and Ollama uses the pinned
 `ollama/ollama:0.40.16` image. The API shares a client network with Open
 WebUI, a runtime network with Ollama, and a RAG network with Docling Serve and
@@ -23,7 +23,11 @@ overrides; the copy is ignored by Git.
 Prerequisites are Terraform 1.17.0 and a running Docker Engine. The primary
 validation host is Windows with Docker Desktop, WSL2, and Linux containers. The
 target is an 8-core x86-64 CPU, 32 GiB RAM with about 24 GiB available to Docker,
-and SSD storage with 50 GB free before setup and at least 10 GB afterward.
+and SSD storage with 50 GB free before setup. Treat 10 GB free after setup as a
+provisional planning target, not a validated minimum or ongoing reserve. The
+initial release relies on manual host free-space monitoring and does not enforce
+a physical free-space threshold. Benchmark peak temporary processing use and
+Qdrant growth to establish the ongoing reserve.
 Validate CPU-only first; GPU setups are a separate profile. From the repository
 root, initialize and validate the configuration, then review the plan before
 applying it:
@@ -41,8 +45,9 @@ excludes local configuration, Terraform state, model data, and development
 artifacts from the build context. The apply outputs `api_url` and
 `open_webui_url` point to the loopback-only services.
 
-Before RAG deployment is implemented, pin the official Docling Serve CPU and
-Qdrant image versions and digests; do not use floating tags.
+Before RAG deployment is implemented, record the immutable digests for
+`ghcr.io/docling-project/docling-serve-cpu:v1.38.2` and
+`qdrant/qdrant:v1.20.2`. Do not use floating tags.
 
 ## Optional NVIDIA GPU
 
@@ -112,8 +117,18 @@ the 1 GB ceiling does not guarantee completion within 120 seconds.
 The starting retrieval configuration uses page-aware chunks targeting 600
 tokens with 100 tokens of overlap, vector-only search, and the top 5 results.
 Set the relevance threshold after evaluating synthetic answerable and
-unanswerable questions. Chunk-size or overlap changes require rebuilding the
-Qdrant index.
+unanswerable questions. Use the default 768-dimensional embedding output with
+Qdrant Cosine distance and no dimension truncation. Evaluate Nomic task
+prefixes (`search_document:` for chunks, `search_query:` for queries) against
+unprefixed input and record the selected convention. Chunk-size, overlap, or
+prefix changes require rebuilding the Qdrant index.
+
+The planned Terraform variable `rag_max_indexed_chunks` configures the
+collection-wide chunk cap and is passed to the API as
+`RAG_MAX_INDEXED_CHUNKS`. Set its value from measured Qdrant volume growth on
+the target host. The cap bounds logical index size, not physical Docker disk
+usage. Monitor host free space manually; benchmark peak temporary conversion
+use and Qdrant growth to establish the ongoing reserve.
 
 ## Teardown and Retention
 

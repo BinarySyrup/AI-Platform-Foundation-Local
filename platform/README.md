@@ -61,13 +61,26 @@ path reports that the documents do not provide enough information. If the
 parser, embedding, or vector store is unavailable, the request fails rather
 than silently bypassing retrieval.
 
+Use the model's default 768-dimensional vectors with Qdrant Cosine distance.
+The API validates embedding output size and collection schema before marking
+RAG ready; a mismatch keeps RAG unavailable. Changing the model, vector
+dimension, distance metric, or input prefix convention requires rebuilding
+the collection from source PDFs.
+
 The initial retrieval profile preserves Docling paragraph and heading
 boundaries and PDF page metadata, targeting 600 tokens per chunk with 100
 tokens of overlap. It uses vector-only search and returns the top 5 chunks.
-Hybrid search and reranking are deferred. Calibrate the relevance threshold
-with a synthetic evaluation set containing answerable and unanswerable
-questions before release. Changing chunk size or overlap requires rebuilding
-the Qdrant index.
+Hybrid search and reranking are deferred. Use `search_document:` for chunks and
+`search_query:` for queries. Compare these paired prefixes with raw inputs on a
+separate small calibration set, then set the relevance threshold from
+answerable and unanswerable score results. Do not tune against the held-out
+quality set. Changing chunk size, overlap, or prefix convention requires
+rebuilding the Qdrant index.
+
+The post-development quality acceptance set contains 30 questions across
+6 to 10 synthetic PDFs: 20 answerable and 10 unanswerable. It passes with at
+least 18 correct, evidence-grounded answers out of 20, correct source and page
+for every citation, and a no-support response for all 10 unanswerable questions.
 
 ## Document API Target
 
@@ -103,6 +116,14 @@ temporary storage rather than buffering the entire PDF in memory. Temporary
 files and partial Qdrant points are removed on success, failure, timeout, and
 cancellation. The 1 GB cap is a hard ceiling, not a promise that each file
 will finish within 120 seconds; the practical page limit must be benchmarked.
+
+The collection has a configurable `RAG_MAX_INDEXED_CHUNKS` cap. FastAPI checks
+the existing ready chunk count plus the new document's chunks after chunking
+and before embedding or Qdrant writes. An upload that would exceed the cap is
+rejected with a capacity-limit error and its temporary files are cleaned up.
+Identical-byte retries use the existing index; deleting a document releases
+its chunks. The default cap is set from target-host storage measurements. It
+limits logical index size and does not impose a physical disk quota.
 
 Each upload uses a unique scratch directory in the API container's writable
 filesystem, not a named volume. The API removes it during normal cleanup and
@@ -142,6 +163,17 @@ include safe errors for Docling, Ollama embeddings, and Qdrant connectivity.
 Concurrent ingestion is rejected with HTTP 429; an ingestion that exceeds its
 configured deadline returns a timeout error and leaves no partial document in
 the index.
+
+RAG failures use stable error codes: 413 `file_too_large`, 415
+`unsupported_media_type`, 422 for malformed, encrypted, page-limit, and
+no-extractable-text PDFs, 409 `indexed_chunk_limit_exceeded`, 429
+`upload_in_progress`, 504 `ingestion_timeout`, 503 `rag_not_ready` or
+`dependency_unavailable`, 502 `parser_upstream_error`, and 507
+`insufficient_storage` for actual disk exhaustion; unexpected failures use 500
+`internal_error`. Native API errors include a safe message, request ID, and
+`X-Request-ID` header; OpenAI-compatible routes translate the error to the
+OpenAI response shape. All failures clean temporary files and partial index
+points.
 
 The platform API does not authenticate requests in this local release. Keep
 FastAPI and Open WebUI published on loopback, and keep the RAG services on

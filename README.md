@@ -45,7 +45,9 @@ that includes file transfer and indexing. Only one upload runs at a time; a
 concurrent upload is rejected with HTTP 429. Temporary files and partial index
 entries are cleaned up when processing ends. The 1 GB cap is a hard ceiling;
 some smaller PDFs may time out, and the practical page limit must be measured
-on the target host.
+on the target host. A configurable total-chunk cap will limit Qdrant collection
+growth; its value will be set from target-host storage measurements. This cap
+does not limit other Docker disk usage.
 
 ## Architecture
 
@@ -99,18 +101,21 @@ Decision 0001](docs/decisions/0001-local-rag-architecture.md).
 | Open WebUI image | `openwebui/open-webui:0.13.4` |
 | Ollama image | `ollama/ollama:0.40.16` |
 | Default generation model | `llama3.1:8b` |
-| Embedding model | Ollama `nomic-embed-text:v1.5` |
-| PDF conversion | `ghcr.io/docling-project/docling-serve-cpu`; release and digest to pin before deployment |
-| Vector store | `qdrant/qdrant`; release and digest to pin before deployment |
+| Embedding model | Ollama `nomic-embed-text:v1.5`, default 768-dimensional output |
+| Vector schema | Qdrant Cosine distance; compare Nomic task prefixes during evaluation |
+| PDF conversion | `ghcr.io/docling-project/docling-serve-cpu:v1.38.2`; record digest before deployment |
+| Vector store | `qdrant/qdrant:v1.20.2`; record digest before deployment |
 | Persistent storage | Ollama model, Open WebUI data, and Qdrant data Docker volumes |
 | Tests and linting | pytest `9.2.0`, Ruff `0.17.3` |
 
 The primary validation host is Windows with Docker Desktop, WSL2, and Linux
 containers. Its target profile is an 8-core modern x86-64 CPU (AVX2 preferred),
 32 GiB RAM with about 24 GiB available to Docker, and SSD storage with at least
-50 GB free before image and model downloads. Keep at least 10 GB free after
-setup for temporary processing and index growth. Validate CPU-only first; an
-NVIDIA GPU is optional for Ollama and is a separate validation profile.
+50 GB free before image and model downloads. The 10 GB post-setup free-space
+figure is provisional, not a verified ongoing reserve. Benchmark temporary
+processing and index growth before setting an ongoing free-space target.
+Validate CPU-only first; an NVIDIA GPU is optional for Ollama and is a
+separate validation profile.
 Docling Serve uses its CPU image. The target remains unverified until the
 document-conversion and inference workload passes on it. Validate with the
 default `llama3.1:8b` model while a representative PDF is ingested and a chat

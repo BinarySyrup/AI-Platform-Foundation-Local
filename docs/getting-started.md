@@ -15,10 +15,12 @@ complete.
 - Target an 8-core modern x86-64 CPU (AVX2 preferred), 32 GiB RAM, and an SSD.
   Configure Docker Desktop/WSL2 to make about 24 GiB of RAM available to
   Docker. Keep at least 50 GB free in Docker's
-  data location before downloading images and models, then retain at least
-  10 GB free for temporary processing and index growth. This profile is a
-  target for validation, not a verified minimum. Validate CPU-only first. An
-  NVIDIA GPU is optional for Ollama and requires a separate validation run;
+  data location before downloading images and models. Treat 10 GB free after
+  setup as a provisional planning target, not a validated minimum or ongoing
+  reserve. The initial release relies on manual host free-space monitoring;
+  benchmark peak temporary use and Qdrant growth to set the ongoing reserve.
+  This profile is a target for validation, not a verified minimum. Validate
+  CPU-only first. An NVIDIA GPU is optional for Ollama and requires a separate validation run;
   Docling Serve uses its CPU image.
 - You do not need an account, password, or API key.
 
@@ -65,9 +67,10 @@ docker exec ollama ollama pull nomic-embed-text:v1.5
 
 Terraform builds the API image `local-ai-platform-api:1.2.0` and downloads
 Open WebUI `openwebui/open-webui:0.13.4` and Ollama `ollama/ollama:0.40.16`.
-The RAG target adds the official Docling Serve CPU image and Qdrant; their
-release tags and immutable digests must be pinned before those services are
-provisioned. Record the resolved digests for both Ollama models during setup.
+The RAG target adds Docling Serve CPU `v1.38.2` and Qdrant
+`qdrant/qdrant:v1.20.2`; record their immutable digests before provisioning
+those services. Record the resolved digests for both Ollama models during
+setup.
 
 To pull the Open WebUI image manually, run:
 
@@ -106,8 +109,26 @@ example variables.
 
 The initial retrieval defaults are page-aware, structure-preserving chunks
 targeting 600 tokens with 100 tokens of overlap, vector-only search, and the
-top 5 results. The relevance threshold will be set after evaluation against
-synthetic answerable and unanswerable questions.
+top 5 results. Use `search_document:` for chunks and `search_query:` for
+questions. Calibrate the relevance threshold against a separate small
+synthetic set of answerable and unanswerable questions; do not tune it against
+the held-out quality test.
+
+The collection schema uses the embedding model's default 768-dimensional
+vectors and Qdrant Cosine distance, without dimension truncation. Compare the
+paired task prefixes with raw inputs during development calibration. Changing
+the input convention requires re-embedding the Qdrant collection.
+
+After development, run the held-out quality check with 30 questions across
+6 to 10 synthetic PDFs (20 answerable and 10 unanswerable). The acceptance
+criteria are at least 18 correct, evidence-grounded answers, correct source
+and page for every citation, and no unsupported answers to the 10 unanswerable
+questions.
+
+The RAG collection will also have a configurable `RAG_MAX_INDEXED_CHUNKS`
+limit, exposed through the Terraform variable `rag_max_indexed_chunks`. Set its
+numeric default after measuring Qdrant storage growth on the target host. This
+caps logical indexed chunks; it does not cap all Docker disk usage.
 
 Terraform also sets these Open WebUI container values:
 

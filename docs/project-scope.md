@@ -101,9 +101,9 @@ Security-conscious architecture does not establish regulatory compliance. The re
 | Chat client | `openwebui/open-webui:0.13.4` | Provide a local interface through the platform API |
 | Runtime integration | HTTPX | Communicate with Ollama over HTTP |
 | Model runtime | Ollama `ollama/ollama:0.40.16` | Manage model artifacts and execute local inference |
-| PDF conversion | `ghcr.io/docling-project/docling-serve-cpu` | Convert uploaded PDFs to structured text and metadata; pin release and digest |
-| Embeddings | Ollama `nomic-embed-text:v1.5` | Embed document chunks and user queries in one vector space |
-| Vector search | Qdrant container | Persist vectors, chunk text, and source metadata; retrieve relevant passages |
+| PDF conversion | `ghcr.io/docling-project/docling-serve-cpu:v1.38.2` | Convert uploaded PDFs to structured text and metadata; record image digest before deployment |
+| Embeddings | Ollama `nomic-embed-text:v1.5` | Embed document chunks and user queries as 768-dimensional vectors |
+| Vector search | `qdrant/qdrant:v1.20.2` | Use Cosine distance; persist vectors, chunk text, and source metadata; record image digest before deployment |
 | Testing | Pytest, HTTPX test client | Validate API behavior and verify connectivity through Docker deployment checks |
 | Code quality | Ruff | Lint and format Python code |
 | Optional type checking | MyPy or Pyright | Provide additional static validation |
@@ -128,13 +128,15 @@ and Linux containers; other host operating systems remain unverified. The
 target profile is a modern 8-core x86-64 CPU with AVX2 preferred, 32 GiB of host
 RAM with about 24 GiB available to Docker, and SSD storage. Keep at least 50 GB
 free in Docker's data location before downloading images and models, then
-retain at least 10 GB free after setup for temporary processing and index
-growth. This is a target profile, not a verified minimum. Validate CPU-only
-first; an NVIDIA GPU is optional for Ollama and requires separate validation.
+use 10 GB free after setup as a provisional planning target. It is not a
+verified minimum or an ongoing free-space floor. Benchmark peak temporary
+processing use and Qdrant growth before setting the ongoing reserve. Validate
+CPU-only first; an NVIDIA GPU is optional for Ollama and requires separate
+validation.
 Docling Serve uses its CPU image. Record the tested host OS, CPU, memory, free
 disk, peak resource use, and workload results before claiming the profile as
-supported. Pin the Docling Serve and Qdrant image versions and digests before
-release; do not use floating image tags.
+supported. Record immutable digests for Docling Serve `v1.38.2` and Qdrant
+`v1.20.2` before release; do not use floating image tags.
 
 ## 5. High-Level Architecture
 
@@ -285,7 +287,11 @@ meets the target host's resource and citation checks.
 Qdrant stores embedded text chunks and source metadata in persistent local
 storage in `local-ai-platform-qdrant-data`. It is reachable only by FastAPI on
 the private RAG network and has no host port. FastAPI owns collection setup,
-upsert, search, and document deletion.
+upsert, search, and document deletion. The collection uses 768-dimensional
+vectors with Cosine distance. FastAPI validates the embedding output size and
+collection schema before enabling RAG; changing the embedding model, vector
+dimension, distance metric, or input-prefix convention requires rebuilding the
+collection from the source PDFs.
 
 ## 7. API Scope
 
@@ -469,10 +475,47 @@ does not create duplicate chunks. The first successful upload's filename
 remains the canonical source name. A matching filename with different bytes
 creates a separate document and does not replace the existing document.
 
+The configurable `RAG_MAX_INDEXED_CHUNKS` limit caps the total indexed chunks
+in the Qdrant collection. After extraction and chunking, but before embedding
+or Qdrant writes, the API compares the current ready chunk count plus the
+candidate document's chunk count with the cap. An upload that would exceed it
+is rejected with a capacity-limit error and its temporary files are removed.
+An exact-byte duplicate consumes no additional capacity; deleting a document
+releases its chunks. Lowering the cap does not delete existing documents, but
+new uploads are rejected until the indexed count falls below the cap. Set the
+numeric default after measuring Qdrant storage growth on the target host. The
+chunk cap is a logical index limit, not a physical disk quota; other Docker
+data and temporary conversion files can still use host storage.
+
 The RAG path uses the latest user message as the retrieval query. A request
 with no relevant document matches returns a clear no-support response instead
 of silently using general model knowledge. A Docling, Ollama embedding, or
 Qdrant failure returns an error rather than bypassing retrieval.
+
+RAG routes use stable error codes and safe messages. The native API returns
+`{"error":{"code":"...","message":"..."},"request_id":"..."}` and an
+`X-Request-ID` header; OpenAI-compatible routes translate errors to the
+OpenAI error shape and retain the request ID. Upload and dependency failures
+use these statuses:
+
+| Condition | HTTP status | Error code |
+|---|---:|---|
+| Uploaded PDF exceeds 1 GB | 413 | `file_too_large` |
+| Uploaded file is not a PDF media type | 415 | `unsupported_media_type` |
+| Malformed PDF | 422 | `invalid_pdf` |
+| Encrypted or password-protected PDF | 422 | `pdf_encrypted` |
+| PDF has no extractable text | 422 | `no_extractable_text` |
+| PDF exceeds the configured practical page limit | 422 | `page_limit_exceeded` |
+| Upload would exceed `RAG_MAX_INDEXED_CHUNKS` | 409 | `indexed_chunk_limit_exceeded` |
+| Another upload is in progress | 429 | `upload_in_progress` |
+| End-to-end ingestion deadline expires | 504 | `ingestion_timeout` |
+| RAG is starting or a required dependency is unavailable | 503 | `rag_not_ready` or `dependency_unavailable` |
+| Docling returns an invalid response | 502 | `parser_upstream_error` |
+| Physical storage is exhausted during indexing | 507 | `insufficient_storage` |
+| Unexpected API failure | 500 | `internal_error` |
+
+Every failure path removes temporary files and partial index points; messages
+must not reveal document text or internal service details.
 
 ### 7.7 Interactive API Documentation
 
@@ -503,6 +546,7 @@ Application configuration will be supplied through environment variables and doc
 | `DOCLING_BASE_URL` | Internal URL of the Docling Serve CPU container |
 | `QDRANT_URL` | Internal URL of the Qdrant service |
 | `QDRANT_COLLECTION` | Collection containing indexed document chunks |
+| `RAG_MAX_INDEXED_CHUNKS` | Maximum total chunks in the collection; numeric default set from target-host storage measurements |
 | `RAG_TOP_K` | Maximum number of retrieved chunks added to a prompt; initial default is 5 |
 | `RAG_SCORE_THRESHOLD` | Minimum retrieval relevance required to use document context |
 
@@ -517,18 +561,44 @@ The initial chunking profile preserves Docling paragraph and heading
 boundaries, keeps chunks within one PDF page, targets 600 tokens per chunk,
 and overlaps adjacent chunks by 100 tokens. Retrieval uses vector search only
 and starts with the top 5 results; hybrid search and reranking are out of scope
-for the initial release. Validate the chunking and retrieval behavior against
-a synthetic evaluation set with answerable and unanswerable questions. Set
-`RAG_SCORE_THRESHOLD` from those results before release, checking retrieved
-content, page citations, and no-support behavior. Changing chunk size or
-overlap requires rebuilding the Qdrant index. The release requires no secrets.
-Any secrets introduced during future development must not be committed to the
-repository.
+for the initial release. Use Nomic's `search_document:` prefix for indexed
+chunks and `search_query:` for user questions. During development calibration,
+compare this paired-prefix convention with raw text using a separate synthetic
+set of about 10 answerable and 10 unanswerable questions. Set
+`RAG_SCORE_THRESHOLD` from the calibration results; do not choose an arbitrary
+numeric threshold. If relevant and irrelevant score ranges overlap
+substantially, adjust retrieval instead of forcing a cutoff. Changing the
+prefix convention, chunk size, or overlap requires rebuilding the Qdrant index.
+The release requires no secrets. Any secrets introduced during future
+development must not be committed to the repository.
+
+After development, run a separate held-out RAG quality acceptance set with 30
+questions across 6 to 10 synthetic PDFs: 20 answerable and 10 unanswerable. Pass
+when at least 18 of 20 answerable questions receive a correct answer grounded
+in retrieved evidence, every citation identifies the correct source and page,
+and all 10 unanswerable questions receive the no-support response without an
+invented answer. Do not use this held-out set to tune retrieval settings.
+
+Use the default 768-dimensional output from `nomic-embed-text:v1.5` with Qdrant
+Cosine distance, without dimension truncation. Keep RAG unavailable if the
+embedding output or Qdrant collection does not match this schema. Use
+`search_document:` for document chunks and `search_query:` for user queries.
+Compare this paired-prefix convention with raw text only on the separate
+development calibration set. Changing the input convention requires
+re-embedding the collection and recalibrating the relevance threshold.
 
 The 1 GB upload cap is a hard maximum. The practical page-count limit must be
 set after measuring conversion, embedding, and indexing time and peak resource
 use on the target host. `RAG_INGESTION_TIMEOUT_SECONDS` covers the full upload
 request and is configured separately from `REQUEST_TIMEOUT_SECONDS`.
+
+Measure Qdrant volume growth for the target chunking profile and use that result
+to set `RAG_MAX_INDEXED_CHUNKS`. The limit controls logical collection size;
+monitor host free space manually because it does not impose a physical disk
+quota. The initial release does not enforce a physical free-space threshold.
+Use the benchmark to define an ongoing manual reserve, accounting for peak
+temporary conversion data and indexed growth; the provisional 10 GB post-setup
+target is not that validated reserve.
 
 ## 9. Persistence and Data Lifecycle
 
@@ -617,14 +687,14 @@ The setup documentation must identify:
 - Primary validation environment: Windows with Docker Desktop configured for
   WSL2 and Linux containers. Other host operating systems remain unverified.
 - Docker Engine, Terraform 1.17.0, Docker provider 4.6.0, and Python 3.14.
-- The official Docling Serve CPU container and Qdrant image, each pinned to an
-  explicit version and digest before release.
+- The official Docling Serve CPU image `v1.38.2` and Qdrant image
+  `qdrant/qdrant:v1.20.2`, both pinned to immutable digests before release.
 - The `nomic-embed-text:v1.5` Ollama model and its resolved digest.
 - Application image build steps.
 - The target validation profile: modern 8-core x86-64 CPU, AVX2 preferred,
   32 GiB host RAM with about 24 GiB available to Docker, and SSD storage with
-  50 GB free before setup and at least 10 GB free after setup. Record test
-  results before treating it as verified.
+  50 GB free before setup and a provisional 10 GB post-setup target. Benchmark
+  and record ongoing free-space needs before treating the profile as verified.
 - Network access required to download dependencies, images, and model artifacts.
 
 ### 11.2 Provision Infrastructure
@@ -700,10 +770,17 @@ Unit tests should cover:
 - The configurable 120-second end-to-end deadline, concurrent-upload rejection,
   temporary-file cleanup, rollback of partial Qdrant indexing, and startup
   recovery after an interrupted upload.
+- RAG error codes and HTTP statuses for upload limits, unsupported or
+  unprocessable PDFs, index-capacity rejection, timeouts, dependency failures,
+  and unexpected errors.
+- The collection-wide chunk cap at, below, and above its configured boundary;
+  rejection before embedding/indexing, no additional capacity for duplicate
+  uploads, and capacity release after document deletion.
 - Document parser response mapping and page metadata preservation.
 - Deterministic PDF chunking; SHA-256 duplicate behavior, idempotent retries,
   and document deletion.
-- Embedding request translation and vector-store upsert/search/delete behavior.
+- Embedding output dimension (768), task-prefix convention, Cosine collection
+  schema, and vector-store upsert/search/delete behavior.
 - Direct-versus-RAG model alias routing, no-match behavior, citation formatting,
   and dependency failure handling.
 
@@ -741,6 +818,8 @@ The project must provide documented commands for:
 - Linting and formatting with Ruff.
 - Validating Terraform configuration.
 - Verifying the deployed API and runtime through the published API.
+- Running the held-out RAG quality acceptance set and reporting answer,
+  evidence, citation, and no-support results.
 
 Static type checking with MyPy or Pyright is optional for this release.
 
@@ -756,6 +835,7 @@ Static type checking with MyPy or Pyright is optional for this release.
 | Retrieved content contains hostile instructions | Model may follow untrusted document text | Delimit retrieved passages as untrusted context and test prompt-injection examples |
 | Document deletion is incomplete | Removed sources remain retrievable | Delete by stable document ID across all Qdrant chunks and verify with search |
 | Synchronous ingestion exceeds its deadline | Uploads fail or leave incomplete entries | Bound request size, permit one active upload, clean up partial state, and validate a practical page limit against the 120-second default |
+| Indexed chunks exhaust Docker storage | Other local services may fail when the shared Docker data disk fills | Cap total Qdrant chunks using a benchmark-derived limit, monitor host free space manually, and benchmark temporary use and Qdrant growth to establish an ongoing reserve; the logical cap is not a physical disk quota |
 | Runtime API changes | Model-listing or chat failures | Isolate the runtime adapter and verify the pinned runtime in Docker |
 | Destructive storage lifecycle | Loss of downloaded models | Separate retention from routine teardown and verify cleanup behavior |
 | Nondeterministic model output | Unreliable deployment checks | Verify successful responses without requiring exact generated wording |

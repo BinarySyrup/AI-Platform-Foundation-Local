@@ -20,7 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   upload, and temporary file/partial-index cleanup.
 - Set Windows with Docker Desktop/WSL2 as the primary validation environment
   and define an 8-core x86-64, 32 GiB RAM target with about 24 GiB available to
-  Docker and SSD storage with 50 GB free before setup and at least 10 GB after.
+  Docker and SSD storage with 50 GB free before setup. Mark 10 GB after setup
+  as a provisional planning target; use target-host benchmarks to set ongoing
+  free-space needs for temporary processing and Qdrant growth.
 - Define exact-byte PDF deduplication using a streaming SHA-256 digest, with
   retries reusing the existing index and new bytes treated as a separate file.
 - Define crash cleanup using API-container scratch directories and startup
@@ -28,8 +30,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Keep `/health` as API liveness and add a separate RAG readiness endpoint;
   gate RAG routes with HTTP 503 until recovery and dependencies are ready.
 - Set the initial retrieval baseline to page-aware 600-token chunks with
-  100-token overlap, vector-only search, and top 5 results; calibrate the
-  relevance threshold against a synthetic evaluation set before release.
+  100-token overlap, vector-only search, and top 5 results; use Nomic's paired
+  retrieval prefixes and calibrate the relevance threshold on a separate
+  synthetic set.
+- Define a held-out, post-development quality check with 30 questions across
+  6 to 10 synthetic PDFs (20 answerable, 10 unanswerable), including answer
+  grounding, citation accuracy, and no-support acceptance criteria.
+- Add a configurable collection-wide indexed-chunk cap, with its numeric value
+  set from target-host Qdrant storage measurements; document that it is a
+  logical limit rather than a physical disk quota.
+- Fix the initial vector schema at 768 dimensions with Qdrant Cosine distance;
+  rebuild the index if the embedding input convention changes.
+- Select `qdrant/qdrant:v1.20.2`; record its immutable digest before deployment.
+- Select Docling Serve CPU `v1.38.2`; record its immutable digest before
+  deployment.
+- Define RAG upload and dependency error statuses and stable error codes,
+  including separate responses for logical index capacity and physical disk
+  exhaustion.
 - Document Swagger UI and `curl.exe` workflows for uploading, listing, and
   deleting RAG documents.
 - Record that RAG implementation and Terraform resources are still pending.
