@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Record that RAG implementation and Terraform resources are still pending.
 
 ## [1.2.0] - 2026-11-17
+## [1.2.0] - 2026-11-18
 
 ### Added
 
@@ -59,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   separate client and runtime Docker networks.
 - OpenAI-compatible model listing and streaming or non-streaming chat
   completions in the FastAPI platform API.
+- Optional NVIDIA GPU passthrough for Ollama, with CPU-only operation as the
+  default.
 
 ### Changed
 
