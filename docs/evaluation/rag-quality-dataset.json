@@ -1,0 +1,290 @@
+{
+  "dataset_version": 1,
+  "purpose": "Held-out synthetic post-development RAG quality evaluation. Keep these questions separate from threshold calibration examples.",
+  "documents": [
+    {
+      "filename": "harbor-operations.pdf",
+      "pages": [
+        "Harbor Operations Alert Procedures. During an amber tide alert, staff check the tide gauges every 30 minutes. During a red tide alert, staff check the gauges every 10 minutes. Send every tide alert report to the harbor desk.",
+        "Harbor Evacuation Drill. The assembly point is the west lot. Staff sign in with the drill marshal. Check the backup generator fuel every Friday."
+      ]
+    },
+    {
+      "filename": "greenhouse-lab-notes.pdf",
+      "pages": [
+        "North Greenhouse Growing Notes. The target soil pH is 6.2. The tomato cultivar is Solara. Water each tomato plant with 1.5 liters on Monday and Thursday. Solara tomatoes usually ripen in 78 days.",
+        "Sample Handling Notes. Store harvested basil at 4 degrees Celsius. Put the harvest date on each sample label. The greenhouse lab manager is Mira Chen."
+      ]
+    },
+    {
+      "filename": "cold-chain-logistics.pdf",
+      "pages": [
+        "Cold Room Procedures. Keep the cold room between 2 and 5 degrees Celsius. Record the temperature logger at 08:00 and 16:00 each day. Report any temperature deviation within 15 minutes.",
+        "Dispatch Schedule. The morning dispatch leaves from dock 3 at 06:30. Return reusable crates to bay B. The Pine route carries 3 cases of water."
+      ]
+    },
+    {
+      "filename": "workplace-safety-manual.pdf",
+      "pages": [
+        "Eyewash Station Inspection. Flush each eyewash station for 15 minutes every month. Verify the inspection seal after flushing. Record the inspection in the safety binder.",
+        "Emergency Contacts. Call the safety desk for workplace emergencies. The safety desk extension is 204. Replace any damaged emergency labels."
+      ]
+    },
+    {
+      "filename": "regional-archive-guide.pdf",
+      "pages": [
+        "Map Collection Index. Box A17 contains regional maps dated 1984. Photo negatives are stored on shelf 6. Use a green request form to access archive materials.",
+        "Archive Room Conditions. Maintain room humidity between 40 and 50 percent. Return checked-out materials within 3 days. The archivist is Jo Park."
+      ]
+    },
+    {
+      "filename": "solar-facility-log.pdf",
+      "pages": [
+        "Solar Array Maintenance Log. The south roof array produced 240 kilowatt-hours on a clear day in April. The inverter model is Helio-4. Clean the panels on the first Tuesday of each month.",
+        "Battery Reserve Notes. The minimum battery reserve is 18 percent. The weekly maintenance window starts at 21:00 on Tuesday. Record battery readings in the blue operations log."
+      ]
+    }
+  ],
+  "questions": [
+    {
+      "id": "A01",
+      "answerable": true,
+      "question": "During an amber tide alert, how often should staff check the tide gauges?",
+      "expected_answer": "Every 30 minutes.",
+      "expected_source": "harbor-operations.pdf",
+      "expected_page": 1
+    },
+    {
+      "id": "A02",
+      "answerable": true,
+      "question": "How often are tide gauges checked during a red alert?",
+      "expected_answer": "Every 10 minutes.",
+      "expected_source": "harbor-operations.pdf",
+      "expected_page": 1
+    },
+    {
+      "id": "A03",
+      "answerable": true,
+      "question": "Where should staff send a tide alert report?",
+      "expected_answer": "Send it to the harbor desk.",
+      "expected_source": "harbor-operations.pdf",
+      "expected_page": 1
+    },
+    {
+      "id": "A04",
+      "answerable": true,
+      "question": "Where is the assembly point for the harbor evacuation drill?",
+      "expected_answer": "The west lot.",
+      "expected_source": "harbor-operations.pdf",
+      "expected_page": 2
+    },
+    {
+      "id": "A05",
+      "answerable": true,
+      "question": "When should the backup generator fuel be checked?",
+      "expected_answer": "Every Friday.",
+      "expected_source": "harbor-operations.pdf",
+      "expected_page": 2
+    },
+    {
+      "id": "A06",
+      "answerable": true,
+      "question": "What target soil pH is listed for the North Greenhouse?",
+      "expected_answer": "The target pH is 6.2.",
+      "expected_source": "greenhouse-lab-notes.pdf",
+      "expected_page": 1
+    },
+    {
+      "id": "A07",
+      "answerable": true,
+      "question": "Which tomato cultivar is used in the greenhouse notes?",
+      "expected_answer": "Solara.",
+      "expected_source": "greenhouse-lab-notes.pdf",
+      "expected_page": 1
+    },
+    {
+      "id": "A08",
+      "answerable": true,
+      "question": "How much water should each tomato plant receive, and on which days?",
+      "expected_answer": "1.5 liters on Monday and Thursday.",
+      "expected_source": "greenhouse-lab-notes.pdf",
+      "expected_page": 1
+    },
+    {
+      "id": "A09",
+      "answerable": true,
+      "question": "How long do Solara tomatoes usually take to ripen?",
+      "expected_answer": "78 days.",
+      "expected_source": "greenhouse-lab-notes.pdf",
+      "expected_page": 1
+    },
+    {
+      "id": "A10",
+      "answerable": true,
+      "question": "What information must be written on each greenhouse sample label?",
+      "expected_answer": "The harvest date.",
+      "expected_source": "greenhouse-lab-notes.pdf",
+      "expected_page": 2
+    },
+    {
+      "id": "A11",
+      "answerable": true,
+      "question": "What temperature range should the cold room maintain?",
+      "expected_answer": "Between 2 and 5 degrees Celsius.",
+      "expected_source": "cold-chain-logistics.pdf",
+      "expected_page": 1
+    },
+    {
+      "id": "A12",
+      "answerable": true,
+      "question": "At what times should staff record the cold room temperature logger?",
+      "expected_answer": "At 08:00 and 16:00 each day.",
+      "expected_source": "cold-chain-logistics.pdf",
+      "expected_page": 1
+    },
+    {
+      "id": "A13",
+      "answerable": true,
+      "question": "How soon must a cold room temperature deviation be reported?",
+      "expected_answer": "Within 15 minutes.",
+      "expected_source": "cold-chain-logistics.pdf",
+      "expected_page": 1
+    },
+    {
+      "id": "A14",
+      "answerable": true,
+      "question": "When and from where does the morning dispatch leave?",
+      "expected_answer": "At 06:30 from dock 3.",
+      "expected_source": "cold-chain-logistics.pdf",
+      "expected_page": 2
+    },
+    {
+      "id": "A15",
+      "answerable": true,
+      "question": "Where should reusable crates be returned?",
+      "expected_answer": "Bay B.",
+      "expected_source": "cold-chain-logistics.pdf",
+      "expected_page": 2
+    },
+    {
+      "id": "A16",
+      "answerable": true,
+      "question": "How long and how often should an eyewash station be flushed?",
+      "expected_answer": "For 15 minutes every month.",
+      "expected_source": "workplace-safety-manual.pdf",
+      "expected_page": 1
+    },
+    {
+      "id": "A17",
+      "answerable": true,
+      "question": "What is the safety desk extension for workplace emergencies?",
+      "expected_answer": "Extension 204.",
+      "expected_source": "workplace-safety-manual.pdf",
+      "expected_page": 2
+    },
+    {
+      "id": "A18",
+      "answerable": true,
+      "question": "Which archive box contains the regional maps, and what year are they from?",
+      "expected_answer": "Box A17 contains maps dated 1984.",
+      "expected_source": "regional-archive-guide.pdf",
+      "expected_page": 1
+    },
+    {
+      "id": "A19",
+      "answerable": true,
+      "question": "Which shelf holds the archive photo negatives?",
+      "expected_answer": "Shelf 6.",
+      "expected_source": "regional-archive-guide.pdf",
+      "expected_page": 1
+    },
+    {
+      "id": "A20",
+      "answerable": true,
+      "question": "What humidity range should the archive room maintain?",
+      "expected_answer": "Between 40 and 50 percent.",
+      "expected_source": "regional-archive-guide.pdf",
+      "expected_page": 2
+    },
+    {
+      "id": "U01",
+      "answerable": false,
+      "question": "What is the harbor station's longitude?",
+      "expected_answer": "The documents do not provide the harbor station's longitude.",
+      "expected_source": null,
+      "expected_page": null
+    },
+    {
+      "id": "U02",
+      "answerable": false,
+      "question": "Which fertilizer brand is used in the greenhouse?",
+      "expected_answer": "The documents do not identify a fertilizer brand.",
+      "expected_source": null,
+      "expected_page": null
+    },
+    {
+      "id": "U03",
+      "answerable": false,
+      "question": "What is the name of the Pine route's driver?",
+      "expected_answer": "The documents do not name the Pine route's driver.",
+      "expected_source": null,
+      "expected_page": null
+    },
+    {
+      "id": "U04",
+      "answerable": false,
+      "question": "What is the maximum load rating of the facility's ladders?",
+      "expected_answer": "The documents do not specify a ladder load rating.",
+      "expected_source": null,
+      "expected_page": null
+    },
+    {
+      "id": "U05",
+      "answerable": false,
+      "question": "In what year was the regional archive founded?",
+      "expected_answer": "The documents do not state when the archive was founded.",
+      "expected_source": null,
+      "expected_page": null
+    },
+    {
+      "id": "U06",
+      "answerable": false,
+      "question": "Which company installed the solar array?",
+      "expected_answer": "The documents do not name the solar array installer.",
+      "expected_source": null,
+      "expected_page": null
+    },
+    {
+      "id": "U07",
+      "answerable": false,
+      "question": "What is the harbor desk telephone number?",
+      "expected_answer": "The documents do not provide the harbor desk telephone number.",
+      "expected_source": null,
+      "expected_page": null
+    },
+    {
+      "id": "U08",
+      "answerable": false,
+      "question": "What brand of refrigerator is installed in the cold room?",
+      "expected_answer": "The documents do not identify a refrigerator brand.",
+      "expected_source": null,
+      "expected_page": null
+    },
+    {
+      "id": "U09",
+      "answerable": false,
+      "question": "How many solar panels are installed on the south roof?",
+      "expected_answer": "The documents do not state the panel count.",
+      "expected_source": null,
+      "expected_page": null
+    },
+    {
+      "id": "U10",
+      "answerable": false,
+      "question": "What is the archive's annual operating budget?",
+      "expected_answer": "The documents do not provide the archive's operating budget.",
+      "expected_source": null,
+      "expected_page": null
+    }
+  ]
+}

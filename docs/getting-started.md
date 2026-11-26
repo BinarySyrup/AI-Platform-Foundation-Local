@@ -2,9 +2,9 @@
 
 Use this guide to start the Local AI Platform Foundation, connect to its API,
 and stop the Docker services. The platform runs on your computer through
-Terraform and Docker. RAG is now in the target release scope; RAG-specific
-containers and API routes are not available until their implementation is
-complete.
+Terraform and Docker. The RAG containers and API routes are implemented;
+capacity and retrieval settings still need target-host measurement and
+calibration before uploads and grounded chat are enabled.
 
 ## Prerequisites
 
@@ -65,12 +65,11 @@ docker exec ollama ollama pull llama3.1:8b
 docker exec ollama ollama pull nomic-embed-text:v1.5
 ```
 
-Terraform builds the API image `local-ai-platform-api:1.2.0` and downloads
-Open WebUI `openwebui/open-webui:0.13.4` and Ollama `ollama/ollama:0.40.16`.
-The RAG target adds Docling Serve CPU `v1.38.2` and Qdrant
-`qdrant/qdrant:v1.20.2`; record their immutable digests before provisioning
-those services. Record the resolved digests for both Ollama models during
-setup.
+Terraform builds the API image `local-ai-platform-api:1.3.0` and downloads
+Open WebUI `openwebui/open-webui:0.13.4`, Ollama `ollama/ollama:0.40.16`,
+Docling Serve CPU `ghcr.io/docling-project/docling-serve-cpu:v1.38.2` and
+Qdrant `qdrant/qdrant:v1.20.2`; Terraform pins their linux/amd64 manifest
+digests. Record the resolved digests for both Ollama models during setup.
 
 To pull the Open WebUI image manually, run:
 
@@ -78,7 +77,14 @@ To pull the Open WebUI image manually, run:
 docker pull openwebui/open-webui:0.13.4
 ```
 
-The example settings already work. To change ports, image tags, model, or data volume names, copy `infra/terraform/terraform.tfvars.example` to `infra/terraform/terraform.tfvars` and edit that copy. Git ignores the local `terraform.tfvars` file.
+The example settings provision the services and direct-chat path. The initial
+`rag_max_indexed_chunks` cap is a provisional 25,000; measure Qdrant growth and
+adjust it for the target host. RAG chat starts with a provisional
+`rag_score_threshold` of `0.50`; tune it after separate retrieval calibration.
+To change ports, image tags, model, or data volume names, copy
+`infra/terraform/terraform.tfvars.example` to
+`infra/terraform/terraform.tfvars` and edit that copy. Git ignores the local
+`terraform.tfvars` file.
 
 ### Optional NVIDIA GPU
 
@@ -98,26 +104,29 @@ The API reads settings from its process environment. `.env.example` is a referen
 | `API_PORT` | `8000` | Port used by the API. |
 | `LOG_LEVEL` | `INFO` | How much detail the API writes to its logs. |
 | `REQUEST_TIMEOUT_SECONDS` | `120` | How long the API waits for Ollama. |
+| `DOCLING_BASE_URL` | `http://docling:5001` | Internal Docling Serve address. |
+| `QDRANT_BASE_URL` | `http://qdrant:6333` | Internal Qdrant address. |
+| `RAG_COLLECTION_NAME` | `platform_documents` | Qdrant collection name. |
+| `RAG_INGESTION_TIMEOUT_SECONDS` | `120` | Full upload and indexing deadline. |
+| `RAG_MAX_INDEXED_CHUNKS` | `25000` (provisional) | Logical chunk cap; adjust after measuring Qdrant growth on the target host. |
+| `RAG_MAX_PDF_PAGES` | Unset | Optional practical page limit after host validation. |
+| `RAG_SCORE_THRESHOLD` | `0.50` (provisional) | Recalibrate against the separate answerable/unanswerable set. |
 
-The RAG implementation will add settings for the fixed embedding model,
-Docling Serve and Qdrant service URLs, collection name, chunking, and retrieval
-limits. The synchronous ingestion deadline will use
-`RAG_INGESTION_TIMEOUT_SECONDS`, default `120`, and a Terraform variable named
-`rag_ingestion_timeout_seconds`. These settings become available with the RAG
-implementation and will then be added to `.env.example` and the Terraform
-example variables.
+Terraform passes these values as the API process environment. Settings from
+the process environment override application defaults. `.env.example` is a
+reference file and is not loaded automatically.
 
 The initial retrieval defaults are page-aware, structure-preserving chunks
-targeting 600 tokens with 100 tokens of overlap, vector-only search, and the
-top 5 results. Use `search_document:` for chunks and `search_query:` for
-questions. Calibrate the relevance threshold against a separate small
-synthetic set of answerable and unanswerable questions; do not tune it against
-the held-out quality test.
+targeting 600 lexical token-like units with 100 units of overlap, vector-only
+search, and the top 5 results. The lexical counter approximates model tokens.
+Use `search_document:` for chunks and `search_query:` for questions. Compare
+the paired prefixes with raw text on a separate small synthetic set of
+answerable and unanswerable questions; do not tune the threshold against the
+held-out quality test.
 
 The collection schema uses the embedding model's default 768-dimensional
-vectors and Qdrant Cosine distance, without dimension truncation. Compare the
-paired task prefixes with raw inputs during development calibration. Changing
-the input convention requires re-embedding the Qdrant collection.
+vectors and Qdrant Cosine distance, without dimension truncation. Changing the
+input convention requires re-embedding the Qdrant collection.
 
 After development, run the held-out quality check with 30 questions across
 6 to 10 synthetic PDFs (20 answerable and 10 unanswerable). The acceptance
@@ -125,10 +134,32 @@ criteria are at least 18 correct, evidence-grounded answers, correct source
 and page for every citation, and no unsupported answers to the 10 unanswerable
 questions.
 
-The RAG collection will also have a configurable `RAG_MAX_INDEXED_CHUNKS`
-limit, exposed through the Terraform variable `rag_max_indexed_chunks`. Set its
-numeric default after measuring Qdrant storage growth on the target host. This
-caps logical indexed chunks; it does not cap all Docker disk usage.
+The synthetic held-out corpus and runner are in `docs/evaluation/` and
+`scripts/rag_quality_eval.py`. Once RAG is ready and retrieval calibration has
+selected the threshold, run:
+
+```powershell
+.venv\Scripts\python.exe scripts\rag_quality_eval.py --model llama3.1:8b --output rag-quality-results.json
+```
+
+The runner creates and uploads six synthetic, two-page PDFs, then saves all 30
+responses and their citations. These documents remain in Qdrant after the run;
+delete the returned document IDs through the document API when finished. Review
+the answers and fill in each result's `grading` fields in the output file. Then
+check the acceptance criteria with:
+
+```powershell
+.venv\Scripts\python.exe scripts\rag_quality_eval.py --grade rag-quality-results.json
+```
+
+Do not tune retrieval settings against this held-out quality set. Use the
+separate calibration examples for threshold selection.
+
+The RAG collection has a configurable `RAG_MAX_INDEXED_CHUNKS` limit, exposed
+through the Terraform variable `rag_max_indexed_chunks`. Its initial default
+is 25,000 chunks, a provisional value to be checked against target-host storage
+measurements. This caps logical indexed chunks; it does not cap all Docker
+disk usage.
 
 Terraform also sets these Open WebUI container values:
 
@@ -149,7 +180,7 @@ curl.exe http://127.0.0.1:8000/health
 curl.exe http://127.0.0.1:8000/v1/models
 ```
 
-After the RAG implementation is available, check RAG readiness separately:
+Check RAG readiness separately:
 
 ```powershell
 curl.exe http://127.0.0.1:8000/health/rag
@@ -168,14 +199,12 @@ Other local apps can call the API too:
 - `GET /api/v1/models` and `POST /api/v1/chat` use the platform's own API format.
 - <http://127.0.0.1:8000/docs> opens the interactive API guide.
 
-The target RAG API adds PDF upload, document listing/deletion, retrieval search,
-and a native RAG chat operation. Open WebUI will show direct and RAG entries
-for supported chat models. A RAG entry retrieves passages from Qdrant before
-calling the same Ollama model; the embedding model is not shown as a chat
-choice. These RAG operations are not available until implementation is
-complete.
+The RAG API provides PDF upload, document listing/deletion, retrieval search,
+and native RAG chat. Open WebUI shows direct and RAG entries for installed chat
+models. A RAG entry retrieves passages from Qdrant before calling the same
+Ollama model; the embedding model is omitted from chat choices.
 
-The target upload route accepts PDF files up to 1 GB (1,000,000,000 bytes)
+The upload route accepts PDF files up to 1 GB (1,000,000,000 bytes)
 and waits synchronously for ingestion. The 120-second configurable deadline
 covers file transfer through completed indexing. Only one upload can run at a
 time; a concurrent upload receives HTTP 429 immediately. A 1 GB file may
@@ -184,8 +213,8 @@ resource and timing validation.
 
 ### Managing RAG Documents
 
-After the RAG implementation is available, manage documents through Swagger UI
-at <http://127.0.0.1:8000/docs> or with `curl.exe`. In Swagger UI, use
+Manage documents through Swagger UI at <http://127.0.0.1:8000/docs> or with
+`curl.exe`. In Swagger UI, use
 **Try it out** on `POST /api/v1/knowledge/documents` and select a PDF file. Use
 the returned document ID to delete it; list documents with
 `GET /api/v1/knowledge/documents`. Open WebUI remains the chat client and does
@@ -213,18 +242,20 @@ Stop the containers without deleting their data:
 
 ```powershell
 docker stop local-ai-platform-open-webui local-ai-platform-api ollama
+docker stop local-ai-platform-docling local-ai-platform-qdrant
 ```
 
 Start them again in this order:
 
 ```powershell
 docker start ollama
+docker start local-ai-platform-qdrant local-ai-platform-docling
 docker start local-ai-platform-api
 docker start local-ai-platform-open-webui
 ```
 
 `terraform destroy` removes the containers and networks but keeps the model
-and Open WebUI data volumes. The target RAG deployment will also preserve the
+and Open WebUI data volumes. The RAG deployment also preserves the
 Qdrant volume containing indexed chunks and vectors. See the [Terraform
 guide](../infra/terraform/README.md) before permanently deleting retained data.
 Uploaded PDFs are processed temporarily and are not retained after ingestion.

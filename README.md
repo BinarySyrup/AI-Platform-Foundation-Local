@@ -12,16 +12,18 @@ Qdrant vector store.
 
 The RAG path uses the selected Ollama chat model. It does not alter or duplicate
 that model. Ollama also runs the fixed `nomic-embed-text:v1.5` model to embed
-PDF chunks and user questions. The RAG implementation is planned; the current
-API and Terraform implementation must be completed before the RAG workflow is
-available.
+PDF chunks and user questions. The FastAPI and Terraform RAG workflow is
+implemented with a provisional `RAG_MAX_INDEXED_CHUNKS=25000` cap and a
+provisional `RAG_SCORE_THRESHOLD=0.50`. Tune the chunk cap from measured Qdrant
+growth and calibrate the relevance threshold before treating either value as
+final.
 
 ## How It Works
 
 1. Terraform provisions Docker networks, containers, and persistent volumes.
-2. Open WebUI lists direct and RAG choices for each supported Ollama chat
-   model. Direct chat calls the selected model; the RAG choice retrieves
-   document passages first, then calls that same model.
+2. Open WebUI lists direct choices for installed Ollama chat models and adds
+   RAG choices after RAG readiness. Direct chat calls the selected model; the
+   RAG choice retrieves document passages first, then calls that same model.
 3. To index a PDF up to 1 GB (1,000,000,000 bytes), a client uploads it to
    FastAPI. FastAPI sends it to Docling Serve for extraction, chunks the
    extracted text, embeds each chunk through Ollama, and stores the vectors,
@@ -45,9 +47,9 @@ that includes file transfer and indexing. Only one upload runs at a time; a
 concurrent upload is rejected with HTTP 429. Temporary files and partial index
 entries are cleaned up when processing ends. The 1 GB cap is a hard ceiling;
 some smaller PDFs may time out, and the practical page limit must be measured
-on the target host. A configurable total-chunk cap will limit Qdrant collection
-growth; its value will be set from target-host storage measurements. This cap
-does not limit other Docker disk usage.
+on the target host. The initial total-chunk cap is 25,000 and is provisional
+until Qdrant storage growth is measured. This logical cap does not limit other
+Docker disk usage.
 
 ## Architecture
 
@@ -96,15 +98,16 @@ Decision 0001](docs/decisions/0001-local-rag-architecture.md).
 | FastAPI | `0.162.0` |
 | HTTPX | `0.28.1` |
 | Pydantic / pydantic-settings | `2.14.1` / `2.16.1` |
+| Multipart parsing | `python-multipart` `0.0.20` |
 | Uvicorn | `0.54.0` |
-| Platform API image | `local-ai-platform-api:1.2.0` (built locally) |
+| Platform API image | `local-ai-platform-api:1.3.0` (built locally) |
 | Open WebUI image | `openwebui/open-webui:0.13.4` |
 | Ollama image | `ollama/ollama:0.40.16` |
 | Default generation model | `llama3.1:8b` |
 | Embedding model | Ollama `nomic-embed-text:v1.5`, default 768-dimensional output |
-| Vector schema | Qdrant Cosine distance; compare Nomic task prefixes during evaluation |
-| PDF conversion | `ghcr.io/docling-project/docling-serve-cpu:v1.38.2`; record digest before deployment |
-| Vector store | `qdrant/qdrant:v1.20.2`; record digest before deployment |
+| Vector schema | Qdrant Cosine distance; `search_document:` and `search_query:` prefixes |
+| PDF conversion | `ghcr.io/docling-project/docling-serve-cpu:v1.38.2` (`linux/amd64` digest `sha256:7b31b3c2efa17534dfcffb61665b71bbc959ad309b5b7ed82c3bbdcc63cc3d58`) |
+| Vector store | `qdrant/qdrant:v1.20.2` (`linux/amd64` digest `sha256:c5e32ee251293d2e1f4dd34890ad75eeee5a4f3821a121d6d8b7e4323448b386`) |
 | Persistent storage | Ollama model, Open WebUI data, and Qdrant data Docker volumes |
 | Tests and linting | pytest `9.2.0`, Ruff `0.17.3` |
 
@@ -146,8 +149,10 @@ docker exec ollama ollama pull nomic-embed-text:v1.5
 
 Open the chat page at <http://127.0.0.1:3000>. The API is at
 <http://127.0.0.1:8000>. Both are for local use and do not have sign-in
-protection. RAG upload and chat operations become available when the planned
-RAG implementation is complete.
+protection. RAG readiness is available at `/health/rag`. The provisional chunk
+cap is 25,000 and the provisional score threshold is 0.50. Calibrate both
+against the target host and retrieval set before treating them as final. The
+held-out quality acceptance set remains a post-development release check.
 
 For setup details, configuration, API examples, data retention, stopping
 services, and troubleshooting, see the [Getting Started guide](docs/getting-started.md).

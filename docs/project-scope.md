@@ -101,9 +101,9 @@ Security-conscious architecture does not establish regulatory compliance. The re
 | Chat client | `openwebui/open-webui:0.13.4` | Provide a local interface through the platform API |
 | Runtime integration | HTTPX | Communicate with Ollama over HTTP |
 | Model runtime | Ollama `ollama/ollama:0.40.16` | Manage model artifacts and execute local inference |
-| PDF conversion | `ghcr.io/docling-project/docling-serve-cpu:v1.38.2` | Convert uploaded PDFs to structured text and metadata; record image digest before deployment |
+| PDF conversion | `ghcr.io/docling-project/docling-serve-cpu:v1.38.2@sha256:7b31b3c2efa17534dfcffb61665b71bbc959ad309b5b7ed82c3bbdcc63cc3d58` | Convert uploaded PDFs to structured text and metadata; pin the linux/amd64 manifest |
 | Embeddings | Ollama `nomic-embed-text:v1.5` | Embed document chunks and user queries as 768-dimensional vectors |
-| Vector search | `qdrant/qdrant:v1.20.2` | Use Cosine distance; persist vectors, chunk text, and source metadata; record image digest before deployment |
+| Vector search | `qdrant/qdrant:v1.20.2@sha256:c5e32ee251293d2e1f4dd34890ad75eeee5a4f3821a121d6d8b7e4323448b386` | Use Cosine distance; persist vectors, chunk text, and source metadata; pin the linux/amd64 manifest |
 | Testing | Pytest, HTTPX test client | Validate API behavior and verify connectivity through Docker deployment checks |
 | Code quality | Ruff | Lint and format Python code |
 | Optional type checking | MyPy or Pyright | Provide additional static validation |
@@ -135,8 +135,8 @@ CPU-only first; an NVIDIA GPU is optional for Ollama and requires separate
 validation.
 Docling Serve uses its CPU image. Record the tested host OS, CPU, memory, free
 disk, peak resource use, and workload results before claiming the profile as
-supported. Record immutable digests for Docling Serve `v1.38.2` and Qdrant
-`v1.20.2` before release; do not use floating image tags.
+supported. Terraform pins the selected Docling Serve and Qdrant version tags to
+their linux/amd64 manifest digests; do not use floating image tags.
 
 ## 5. High-Level Architecture
 
@@ -227,8 +227,9 @@ The platform API is responsible for:
 - Exposing the external API contract.
 - Providing OpenAI-compatible model listing and streaming or non-streaming chat
   completion routes for Open WebUI and other clients.
-- Listing direct and RAG variants for supported Ollama chat models; resolving
-  RAG aliases explicitly instead of forwarding them to Ollama.
+- Listing direct variants for supported Ollama chat models and exposing RAG
+  aliases after RAG is ready; resolve aliases explicitly instead
+  of forwarding them to Ollama.
 - Orchestrating PDF conversion, chunking, embeddings, vector search, and
   document lifecycle operations.
 - Validating incoming requests.
@@ -251,8 +252,9 @@ Open WebUI is responsible for:
   `127.0.0.1:3000` by default.
 - Sending model-listing and chat requests to the FastAPI service through the
   OpenAI-compatible API on the client Docker network.
-- Showing direct and RAG entries for supported chat models. The RAG entry is an
-  API alias, not a separate Ollama model file.
+- Showing direct chat entries and adding RAG entries for supported chat models
+  after RAG is ready. A RAG entry is an API alias, not a separate
+  Ollama model file.
 - Keeping direct Ollama access disabled so model requests pass through FastAPI.
 - Persisting conversations and settings in its named Docker volume mounted at
   `/app/backend/data`.
@@ -420,7 +422,10 @@ POST /v1/chat/completions
 ```
 
 `GET /v1/models` returns each supported Ollama chat model as a direct entry and
-a RAG entry. For example, `llama3.1:8b` is direct chat and
+adds its RAG entry after RAG readiness. The application starts with a
+provisional score threshold of 0.50; calibrate it before treating retrieval as
+validated. For example,
+`llama3.1:8b` is direct chat and
 `llama3.1:8b-rag` is an API alias that uses the same Ollama generation model
 after document retrieval. The RAG alias is not an Ollama model and must be
 resolved by FastAPI before calling the runtime. Open WebUI uses the selected
@@ -482,10 +487,11 @@ candidate document's chunk count with the cap. An upload that would exceed it
 is rejected with a capacity-limit error and its temporary files are removed.
 An exact-byte duplicate consumes no additional capacity; deleting a document
 releases its chunks. Lowering the cap does not delete existing documents, but
-new uploads are rejected until the indexed count falls below the cap. Set the
-numeric default after measuring Qdrant storage growth on the target host. The
-chunk cap is a logical index limit, not a physical disk quota; other Docker
-data and temporary conversion files can still use host storage.
+new uploads are rejected until the indexed count falls below the cap. The
+initial default is a provisional 25,000 chunks; validate or revise it after
+measuring Qdrant storage growth on the target host. The chunk cap is a logical
+index limit, not a physical disk quota; other Docker data and temporary
+conversion files can still use host storage.
 
 The RAG path uses the latest user message as the retrieval query. A request
 with no relevant document matches returns a clear no-support response instead
@@ -500,16 +506,18 @@ use these statuses:
 
 | Condition | HTTP status | Error code |
 |---|---:|---|
+| Multipart upload is malformed or does not contain one `file` part | 400 | `invalid_upload` |
 | Uploaded PDF exceeds 1 GB | 413 | `file_too_large` |
 | Uploaded file is not a PDF media type | 415 | `unsupported_media_type` |
-| Malformed PDF | 422 | `invalid_pdf` |
-| Encrypted or password-protected PDF | 422 | `pdf_encrypted` |
-| PDF has no extractable text | 422 | `no_extractable_text` |
+| Malformed, encrypted, or textless PDF | 422 | `unprocessable_pdf` |
 | PDF exceeds the configured practical page limit | 422 | `page_limit_exceeded` |
+| Requested document does not exist | 404 | `document_not_found` |
 | Upload would exceed `RAG_MAX_INDEXED_CHUNKS` | 409 | `indexed_chunk_limit_exceeded` |
 | Another upload is in progress | 429 | `upload_in_progress` |
 | End-to-end ingestion deadline expires | 504 | `ingestion_timeout` |
 | RAG is starting or a required dependency is unavailable | 503 | `rag_not_ready` or `dependency_unavailable` |
+| Retrieval threshold is explicitly unset | 503 | `rag_not_calibrated` |
+| Indexed chunk limit was explicitly disabled with a null value | 503 | `rag_configuration_incomplete` |
 | Docling returns an invalid response | 502 | `parser_upstream_error` |
 | Physical storage is exhausted during indexing | 507 | `insufficient_storage` |
 | Unexpected API failure | 500 | `internal_error` |
@@ -531,7 +539,7 @@ scope.
 
 ## 8. Configuration
 
-Application configuration will be supplied through environment variables and documented in `.env.example`.
+Application configuration is supplied through environment variables and documented in `.env.example`.
 
 | Variable | Purpose |
 |---|---|
@@ -542,33 +550,40 @@ Application configuration will be supplied through environment variables and doc
 | `LOG_LEVEL` | Application logging verbosity |
 | `REQUEST_TIMEOUT_SECONDS` | Timeout for runtime requests |
 | `RAG_INGESTION_TIMEOUT_SECONDS` | End-to-end synchronous PDF upload and indexing deadline; defaults to 120 seconds and is configurable through Terraform |
-| `EMBEDDING_MODEL` | Fixed Ollama embedding model; `nomic-embed-text:v1.5` |
 | `DOCLING_BASE_URL` | Internal URL of the Docling Serve CPU container |
-| `QDRANT_URL` | Internal URL of the Qdrant service |
-| `QDRANT_COLLECTION` | Collection containing indexed document chunks |
-| `RAG_MAX_INDEXED_CHUNKS` | Maximum total chunks in the collection; numeric default set from target-host storage measurements |
-| `RAG_TOP_K` | Maximum number of retrieved chunks added to a prompt; initial default is 5 |
-| `RAG_SCORE_THRESHOLD` | Minimum retrieval relevance required to use document context |
+| `QDRANT_BASE_URL` | Internal URL of the Qdrant service |
+| `RAG_COLLECTION_NAME` | Collection containing indexed document chunks; defaults to `platform_documents` |
+| `RAG_MAX_INDEXED_CHUNKS` | Maximum total chunks; initial default is a provisional 25,000, subject to target-host storage measurement |
+| `RAG_MAX_PDF_PAGES` | Optional practical page limit; remains unset until target-host timing/resource validation establishes a value |
+| `RAG_SCORE_THRESHOLD` | Minimum retrieval relevance; initial application default is provisional `0.50`, to be tuned from calibration |
 
-The application reads process environment variables directly. `.env.example`
-is documentation only and is not loaded automatically.
+The application reads process environment variables directly. Terraform supplies
+the API container environment. For local runs, process environment values
+override application defaults. `.env.example` is documentation only and is not
+loaded automatically.
 
-Infrastructure configuration will use Terraform variables, with example values documented in `infra/terraform/terraform.tfvars.example`.
-
-Configuration loading and precedence must be documented; `.env.example` is a reference template, not an automatically loaded configuration mechanism.
+Infrastructure configuration uses Terraform variables, with example values documented in `infra/terraform/terraform.tfvars.example`.
 
 The initial chunking profile preserves Docling paragraph and heading
 boundaries, keeps chunks within one PDF page, targets 600 tokens per chunk,
 and overlaps adjacent chunks by 100 tokens. Retrieval uses vector search only
-and starts with the top 5 results; hybrid search and reranking are out of scope
+and returns the top 5 results; hybrid search and reranking are out of scope
 for the initial release. Use Nomic's `search_document:` prefix for indexed
-chunks and `search_query:` for user questions. During development calibration,
-compare this paired-prefix convention with raw text using a separate synthetic
-set of about 10 answerable and 10 unanswerable questions. Set
-`RAG_SCORE_THRESHOLD` from the calibration results; do not choose an arbitrary
-numeric threshold. If relevant and irrelevant score ranges overlap
-substantially, adjust retrieval instead of forcing a cutoff. Changing the
+chunks and `search_query:` for user questions. The application starts with a
+provisional `RAG_SCORE_THRESHOLD=0.50` for initial use. During development
+calibration, compare this paired-prefix convention with raw text using a
+separate synthetic set of about 10 answerable and 10 unanswerable questions,
+then tune the threshold from those results. If relevant and irrelevant score
+ranges overlap substantially, adjust retrieval instead of forcing a cutoff. Changing the
 prefix convention, chunk size, or overlap requires rebuilding the Qdrant index.
+The current chunker counts deterministic lexical token-like units as a
+lightweight approximation; the held-out quality evaluation must assess whether
+that approximation is adequate for the target corpus.
+If the threshold is explicitly set to null, search remains available for
+calibration while RAG chat returns `rag_not_calibrated`. By default, RAG chat
+uses the provisional 0.50 cutoff. New uploads use the provisional
+25,000-chunk default; explicitly setting the cap to null disables uploads
+with `rag_configuration_incomplete`.
 The release requires no secrets. Any secrets introduced during future
 development must not be committed to the repository.
 
@@ -593,7 +608,8 @@ use on the target host. `RAG_INGESTION_TIMEOUT_SECONDS` covers the full upload
 request and is configured separately from `REQUEST_TIMEOUT_SECONDS`.
 
 Measure Qdrant volume growth for the target chunking profile and use that result
-to set `RAG_MAX_INDEXED_CHUNKS`. The limit controls logical collection size;
+to validate or revise the provisional `RAG_MAX_INDEXED_CHUNKS=25000` default.
+The limit controls logical collection size;
 monitor host free space manually because it does not impose a physical disk
 quota. The initial release does not enforce a physical free-space threshold.
 Use the benchmark to define an ongoing manual reserve, accounting for peak
@@ -688,7 +704,7 @@ The setup documentation must identify:
   WSL2 and Linux containers. Other host operating systems remain unverified.
 - Docker Engine, Terraform 1.17.0, Docker provider 4.6.0, and Python 3.14.
 - The official Docling Serve CPU image `v1.38.2` and Qdrant image
-  `qdrant/qdrant:v1.20.2`, both pinned to immutable digests before release.
+  `qdrant/qdrant:v1.20.2`, both pinned to immutable linux/amd64 manifest digests.
 - The `nomic-embed-text:v1.5` Ollama model and its resolved digest.
 - Application image build steps.
 - The target validation profile: modern 8-core x86-64 CPU, AVX2 preferred,
@@ -835,7 +851,7 @@ Static type checking with MyPy or Pyright is optional for this release.
 | Retrieved content contains hostile instructions | Model may follow untrusted document text | Delimit retrieved passages as untrusted context and test prompt-injection examples |
 | Document deletion is incomplete | Removed sources remain retrievable | Delete by stable document ID across all Qdrant chunks and verify with search |
 | Synchronous ingestion exceeds its deadline | Uploads fail or leave incomplete entries | Bound request size, permit one active upload, clean up partial state, and validate a practical page limit against the 120-second default |
-| Indexed chunks exhaust Docker storage | Other local services may fail when the shared Docker data disk fills | Cap total Qdrant chunks using a benchmark-derived limit, monitor host free space manually, and benchmark temporary use and Qdrant growth to establish an ongoing reserve; the logical cap is not a physical disk quota |
+| Indexed chunks exhaust Docker storage | Other local services may fail when the shared Docker data disk fills | Validate or revise the provisional 25,000-chunk cap using measured Qdrant growth, monitor host free space manually, and benchmark temporary use to establish an ongoing reserve; the logical cap is not a physical disk quota |
 | Runtime API changes | Model-listing or chat failures | Isolate the runtime adapter and verify the pinned runtime in Docker |
 | Destructive storage lifecycle | Loss of downloaded models | Separate retention from routine teardown and verify cleanup behavior |
 | Nondeterministic model output | Unreliable deployment checks | Verify successful responses without requiring exact generated wording |

@@ -22,3 +22,12 @@ class RuntimeClient(Protocol):
         messages: list[ChatMessage],
         temperature: float | None,
     ) -> AsyncIterator[str]: ...
+
+
+class EmbeddingClient(Protocol):
+    async def embed(
+        self,
+        *,
+        model: str,
+        inputs: list[str],
+    ) -> list[list[float]]: ...

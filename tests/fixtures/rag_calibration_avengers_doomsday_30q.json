@@ -1,0 +1,254 @@
+{
+  "dataset_version": 1,
+  "purpose": "A second, document-specific 30-question calibration and quality check. These questions are distinct from the initial 20-question Avengers: Doomsday calibration fixture and from the synthetic held-out evaluation dataset.",
+  "source_document": "wikipedia-Avengers__Doomsday.pdf",
+  "source_document_included": false,
+  "threshold_to_evaluate": 0.5,
+  "status": "not_run",
+  "question_counts": {
+    "answerable": 20,
+    "unanswerable": 10
+  },
+  "questions": [
+    {
+      "id": "A01",
+      "answerable": true,
+      "question": "How long after the events of Thunderbolts* (2025) does Avengers: Doomsday take place?",
+      "expected_answer": "Fourteen months after Thunderbolts* (2025).",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [2]
+    },
+    {
+      "id": "A02",
+      "answerable": true,
+      "question": "According to Kevin Feige, is Doctor Doom an alternate-universe variant of Tony Stark?",
+      "expected_answer": "No. Feige said Doom is not an alternate-universe variant of Tony Stark / Iron Man.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [2]
+    },
+    {
+      "id": "A03",
+      "answerable": true,
+      "question": "How did Robert Downey Jr. describe Doctor Doom's approach?",
+      "expected_answer": "Downey described Doom as a master manipulator who is willing to go scorched earth.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [2]
+    },
+    {
+      "id": "A04",
+      "answerable": true,
+      "question": "Which comic-book Secret Wars stories inspired the Russo brothers' interest in directing a Secret Wars film?",
+      "expected_answer": "The 1984–85 crossover event written by Jim Shooter and the 2015–16 storyline written by Jonathan Hickman; both bring Marvel characters together on Battleworld.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [6]
+    },
+    {
+      "id": "A05",
+      "answerable": true,
+      "question": "What comic-book storyline inspired The Kang Dynasty, and what does Kang do in it?",
+      "expected_answer": "A 2001–02 storyline written by Kurt Busiek, in which Kang the Conqueror travels through time to enslave humanity.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [6]
+    },
+    {
+      "id": "A06",
+      "answerable": true,
+      "question": "What release dates were initially announced for The Kang Dynasty and Avengers: Secret Wars in July 2022?",
+      "expected_answer": "May 2, 2025, for The Kang Dynasty and November 7, 2025, for Secret Wars.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [6]
+    },
+    {
+      "id": "A07",
+      "answerable": true,
+      "question": "Who was originally hired to direct The Kang Dynasty?",
+      "expected_answer": "Destin Daniel Cretton.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [6]
+    },
+    {
+      "id": "A08",
+      "answerable": true,
+      "question": "How many cast members did Marvel announce for the film in March 2025 alongside Robert Downey Jr.?",
+      "expected_answer": "Twenty-six cast members.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [7]
+    },
+    {
+      "id": "A09",
+      "answerable": true,
+      "question": "Why did Disney and Marvel Studios fire Jonathan Majors in December 2023, according to the article?",
+      "expected_answer": "He was found guilty of harassment and reckless assault in the third degree.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [6]
+    },
+    {
+      "id": "A10",
+      "answerable": true,
+      "question": "When and where did principal photography begin?",
+      "expected_answer": "April 28, 2025, at Pinewood Studios in Buckinghamshire, England.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [7]
+    },
+    {
+      "id": "A11",
+      "answerable": true,
+      "question": "Which studio in Berkshire also hosted filming?",
+      "expected_answer": "Shinfield Studios.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [7]
+    },
+    {
+      "id": "A12",
+      "answerable": true,
+      "question": "Who plays Thor, and what is Thor's role among the Avengers?",
+      "expected_answer": "Chris Hemsworth plays Thor, the Asgardian god of thunder and a founding Avenger.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [3]
+    },
+    {
+      "id": "A13",
+      "answerable": true,
+      "question": "Who plays Yelena Belova, and which team is she a member of?",
+      "expected_answer": "Florence Pugh plays Yelena Belova, a member of the New Avengers.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [3]
+    },
+    {
+      "id": "A14",
+      "answerable": true,
+      "question": "Who plays Sam Wilson, and what equipment did the military train him to use in aerial combat?",
+      "expected_answer": "Anthony Mackie plays Sam Wilson. He was trained to use a specially designed wing pack.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [3]
+    },
+    {
+      "id": "A15",
+      "answerable": true,
+      "question": "Who plays Bucky Barnes, and what is his position in the New Avengers?",
+      "expected_answer": "Sebastian Stan plays Bucky Barnes / Winter Soldier, the de facto leader of the New Avengers.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [4]
+    },
+    {
+      "id": "A16",
+      "answerable": true,
+      "question": "What is the name of Sentry's dark alter ego?",
+      "expected_answer": "The Void.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [4]
+    },
+    {
+      "id": "A17",
+      "answerable": true,
+      "question": "Who plays Cyclops, and how does the character control his optic energy beams?",
+      "expected_answer": "James Marsden plays Cyclops, who controls his optic energy beams with a special visor.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [4]
+    },
+    {
+      "id": "A18",
+      "answerable": true,
+      "question": "How long did Alan Cumming's Nightcrawler makeup take for Doomsday compared with X2?",
+      "expected_answer": "About an hour and a half for Doomsday, compared with four and a half to five hours for X2.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [4, 5]
+    },
+    {
+      "id": "A19",
+      "answerable": true,
+      "question": "Why did Disney delay the film's release date in May 2025?",
+      "expected_answer": "To allow more time for production to be completed.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [7]
+    },
+    {
+      "id": "A20",
+      "answerable": true,
+      "question": "Who is editing the film?",
+      "expected_answer": "Jeffrey Ford and Matthew Schmidt.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [8]
+    },
+    {
+      "id": "U01",
+      "answerable": false,
+      "question": "Which actor portrays Franklin Richards?",
+      "expected_answer": "The article names Franklin Richards as a character but does not identify the actor portraying him.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [5]
+    },
+    {
+      "id": "U02",
+      "answerable": false,
+      "question": "Which actor voices H.E.R.B.I.E. in the film?",
+      "expected_answer": "The article mentions H.E.R.B.I.E. but does not identify a voice actor.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [5]
+    },
+    {
+      "id": "U03",
+      "answerable": false,
+      "question": "What are the names of the three Latverian witches?",
+      "expected_answer": "The article describes three masked Latverian witches but does not give their names.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [5]
+    },
+    {
+      "id": "U04",
+      "answerable": false,
+      "question": "How many actors are in the film's complete final cast?",
+      "expected_answer": "The article says the full cast had not yet been announced, so it does not give the final cast total.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [7]
+    },
+    {
+      "id": "U05",
+      "answerable": false,
+      "question": "How much was Robert Downey Jr. paid to play Doctor Doom?",
+      "expected_answer": "The article does not state Downey's compensation.",
+      "expected_source": null,
+      "expected_pages": null
+    },
+    {
+      "id": "U06",
+      "answerable": false,
+      "question": "On what date was the first official trailer released?",
+      "expected_answer": "The article does not state a first-trailer release date.",
+      "expected_source": null,
+      "expected_pages": null
+    },
+    {
+      "id": "U07",
+      "answerable": false,
+      "question": "In which city in Bahrain did location filming take place?",
+      "expected_answer": "The article mentions location filming in Bahrain but does not name a city.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [7]
+    },
+    {
+      "id": "U08",
+      "answerable": false,
+      "question": "Exactly how many actors from the 20th Century Fox X-Men films appear in Doomsday?",
+      "expected_answer": "The article says some actors from Fox's X-Men films appear but does not give an exact count.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [1, 7]
+    },
+    {
+      "id": "U09",
+      "answerable": false,
+      "question": "What is the film's production budget?",
+      "expected_answer": "The article does not state the production budget.",
+      "expected_source": null,
+      "expected_pages": null
+    },
+    {
+      "id": "U10",
+      "answerable": false,
+      "question": "Which of the Latverian witches leads Doom's coven?",
+      "expected_answer": "The article says the three witches act as Doom's coven but does not identify a leader.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [5]
+    }
+  ]
+}

@@ -1,17 +1,20 @@
 # Terraform Deployment
 
 This configuration uses Terraform 1.17.0 and the Docker provider 4.6.0 to build
-the FastAPI image and manage Open WebUI, Ollama, Docker networks, and
-persistent data volumes. The target RAG deployment adds the official Docling
-Serve CPU image `ghcr.io/docling-project/docling-serve-cpu:v1.38.2` and Qdrant image
-`qdrant/qdrant:v1.20.2`. Open WebUI uses the pinned
+the FastAPI image and manage Open WebUI, Ollama, Docling Serve, Qdrant, Docker
+networks, and persistent data volumes. Docling Serve uses the official CPU
+image `ghcr.io/docling-project/docling-serve-cpu:v1.38.2` with linux/amd64
+manifest digest `sha256:7b31b3c2efa17534dfcffb61665b71bbc959ad309b5b7ed82c3bbdcc63cc3d58`;
+Qdrant uses `qdrant/qdrant:v1.20.2` with linux/amd64 manifest digest
+`sha256:c5e32ee251293d2e1f4dd34890ad75eeee5a4f3821a121d6d8b7e4323448b386`.
+Open WebUI uses the pinned
 `openwebui/open-webui:0.13.4` image, and Ollama uses the pinned
 `ollama/ollama:0.40.16` image. The API shares a client network with Open
 WebUI, a runtime network with Ollama, and a RAG network with Docling Serve and
 Qdrant. Only FastAPI can reach the runtime and RAG services. The API and Open
 WebUI are published on loopback; Ollama, Docling Serve, and Qdrant have no host
-ports. RAG Terraform resources are part of the target scope and remain pending
-implementation.
+ports. RAG services use their own private Docker network. The API image is
+`local-ai-platform-api:1.3.0` and is built from the local source tree.
 
 Terraform uses local state in this directory. State, provider data, plans, and
 environment-specific variable files are excluded from version control. Copy
@@ -45,9 +48,9 @@ excludes local configuration, Terraform state, model data, and development
 artifacts from the build context. The apply outputs `api_url` and
 `open_webui_url` point to the loopback-only services.
 
-Before RAG deployment is implemented, record the immutable digests for
-`ghcr.io/docling-project/docling-serve-cpu:v1.38.2` and
-`qdrant/qdrant:v1.20.2`. Do not use floating tags.
+Terraform pins Docling Serve and Qdrant to immutable linux/amd64 manifest
+digests in `variables.tf`. The selected digests were queried on 2026-11-25.
+Do not use floating tags.
 
 ## Optional NVIDIA GPU
 
@@ -84,8 +87,7 @@ curl.exe http://127.0.0.1:8000/api/v1/models
 curl.exe http://127.0.0.1:8000/v1/models
 ```
 
-Once the RAG API is implemented, verify its separate readiness endpoint with
-`curl.exe http://127.0.0.1:8000/health/rag`. A ready response requires startup
+Verify RAG readiness with `curl.exe http://127.0.0.1:8000/health/rag`. A ready response requires startup
 recovery to finish and Qdrant, Docling Serve, and the Ollama embedding model to
 be available. The endpoint returns HTTP 503 until those conditions are met,
 and RAG routes remain unavailable during that time. `/health` reports API
@@ -99,13 +101,13 @@ the services are safe to use only within the local loopback boundary.
 Ollama is reachable by the API at `http://ollama:11434` on the private Docker
 bridge network and is not exposed to the host.
 
-The target RAG deployment makes Docling Serve and Qdrant reachable only by the
+The RAG deployment makes Docling Serve and Qdrant reachable only by the
 API on a separate private RAG network. The API sends uploaded PDF files to
 Docling Serve's file-conversion endpoint and must not use its URL-fetch
 endpoint. Synchronous ingestion has a hard 1 GB (1,000,000,000 bytes)
 file-size ceiling and a configurable 120-second end-to-end deadline. The
-deadline is controlled by `RAG_INGESTION_TIMEOUT_SECONDS` and the planned
-Terraform variable `rag_ingestion_timeout_seconds`. One upload runs at a time;
+deadline is controlled by `RAG_INGESTION_TIMEOUT_SECONDS` and the Terraform
+variable `rag_ingestion_timeout_seconds`. One upload runs at a time;
 additional uploads are rejected with HTTP 429 rather than queued. The API
 streams uploads to per-upload scratch directories in the API container's
 writable filesystem, not a named volume. It removes scratch data and partial
@@ -114,21 +116,28 @@ at startup. Startup also deletes all points for documents with pending chunks
 before enabling RAG operations. A practical page-count limit remains subject to validation;
 the 1 GB ceiling does not guarantee completion within 120 seconds.
 
-The starting retrieval configuration uses page-aware chunks targeting 600
-tokens with 100 tokens of overlap, vector-only search, and the top 5 results.
-Set the relevance threshold after evaluating synthetic answerable and
-unanswerable questions. Use the default 768-dimensional embedding output with
-Qdrant Cosine distance and no dimension truncation. Evaluate Nomic task
-prefixes (`search_document:` for chunks, `search_query:` for queries) against
-unprefixed input and record the selected convention. Chunk-size, overlap, or
-prefix changes require rebuilding the Qdrant index.
+The retrieval configuration uses page-aware chunks targeting 600 lexical
+token-like units with 100 units of overlap, vector-only search, and the top 5
+results. The lexical counter approximates model tokens and should be assessed
+during quality evaluation. Use the default 768-dimensional embedding output
+with Qdrant Cosine distance and no dimension truncation. The implementation
+uses Nomic's paired prefixes (`search_document:` for chunks,
+`search_query:` for queries); compare them with raw input on the separate
+calibration set. Chunk-size, overlap, or prefix changes require rebuilding the
+Qdrant index.
 
-The planned Terraform variable `rag_max_indexed_chunks` configures the
-collection-wide chunk cap and is passed to the API as
-`RAG_MAX_INDEXED_CHUNKS`. Set its value from measured Qdrant volume growth on
-the target host. The cap bounds logical index size, not physical Docker disk
-usage. Monitor host free space manually; benchmark peak temporary conversion
-use and Qdrant growth to establish the ongoing reserve.
+The initial `rag_max_indexed_chunks` default is 25,000, a provisional cap.
+Measure Qdrant volume growth on the target host and validate or revise this
+value. Setting it to `null` disables PDF uploads, which return
+`rag_configuration_incomplete`. Set
+The application falls back to a provisional `RAG_SCORE_THRESHOLD=0.50` when
+the Terraform override is null. Calibrate the threshold using the separate
+retrieval set and set `rag_score_threshold` if the measured cutoff differs.
+`rag_max_pdf_pages` is optional and remains unset until
+the target-host page limit is measured. The chunk cap bounds logical index
+size, not physical Docker disk usage. Monitor host free space manually and
+benchmark peak temporary conversion use and Qdrant growth to establish the
+ongoing reserve.
 
 ## Teardown and Retention
 

@@ -39,8 +39,10 @@ directly.
 
 ### Offer direct and RAG choices for each supported chat model
 
-The OpenAI-compatible model list contains a direct entry and a RAG alias for
-each supported Ollama chat model. The RAG alias is a FastAPI routing identifier
+The OpenAI-compatible model list contains a direct entry for each supported
+Ollama chat model and adds its RAG alias after RAG is ready. The application
+uses a provisional 0.50 score threshold until calibration selects a final
+value. The RAG alias is a FastAPI routing identifier
 such as `llama3.1:8b-rag`, not another model file. FastAPI resolves the alias to
 the underlying selected generation model before calling Ollama. Direct entries
 keep their existing no-retrieval behavior. This uses Open WebUI's model picker
@@ -89,9 +91,8 @@ preserves returned source and page metadata. The parser has no host port and
 does not communicate directly with Ollama or Qdrant. Do not use Docling Serve's
 URL-based conversion endpoint.
 
-Use Docling Serve `v1.38.2` and record its immutable image digest before
-deployment. Use `qdrant/qdrant:v1.20.2` for Qdrant and record its immutable
-digest before deployment.
+Use Docling Serve `v1.38.2` and Qdrant `v1.20.2`, pinned to the selected
+linux/amd64 manifest digests in Terraform.
 
 ### Keep the initial ingestion format to PDF
 
@@ -162,8 +163,8 @@ rebuilding the Qdrant index.
 Use Nomic's `search_document:` prefix for chunks and `search_query:` prefix for
 queries. During development calibration, compare the paired prefixes with raw
 inputs on a separate synthetic set of about 10 answerable and 10 unanswerable
-questions. Set `RAG_SCORE_THRESHOLD` from the resulting score ranges rather
-than choosing an arbitrary value. If relevant and irrelevant ranges overlap
+questions. Start with the provisional `RAG_SCORE_THRESHOLD=0.50`, then tune it
+from the resulting score ranges. If relevant and irrelevant ranges overlap
 substantially, adjust retrieval instead of forcing a cutoff. Changing the
 prefix convention requires re-embedding the collection.
 
@@ -187,10 +188,11 @@ capacity; deleting a document releases its chunks. Lowering the cap does not
 delete existing documents, and new uploads remain blocked until the indexed
 count is below the cap.
 
-Set the numeric cap after measuring actual Qdrant storage growth on the target
-host. This logical chunk limit bounds indexed content approximately; it is not
-a physical Docker disk quota and cannot prevent disk use by other data or
-temporary conversion files.
+Use a provisional default cap of 25,000 chunks. Measure actual Qdrant storage
+growth on the target host and validate or revise this default. This logical
+chunk limit bounds indexed content approximately; it is not a physical Docker
+disk quota and cannot prevent disk use by other data or temporary conversion
+files.
 
 The initial release relies on the operator to monitor Docker host free space;
 it has no physical free-space admission check. Treat 10 GB after setup as a
@@ -258,7 +260,8 @@ independent.
 This image packages Docling Serve with additional setup and management
 conveniences. The upstream Docling Serve CPU image was selected to avoid an
 extra wrapper layer and keep the parser closer to the project that maintains
-the API. The selected `v1.38.2` image still requires an immutable digest pin.
+the API. The selected `v1.38.2` image is pinned to its immutable linux/amd64
+manifest digest.
 
 ### A RAG toggle or custom frontend
 
@@ -303,8 +306,8 @@ which generation model the user chooses.
 
 ## Implementation Gates
 
-- Record immutable digests for Docling Serve `v1.38.2` and
-  `qdrant/qdrant:v1.20.2` before deployment.
+- Verify the pinned Docling Serve and Qdrant images pull and start on the
+  target Docker host.
 - Verify temporary upload and conversion files are removed after success and
   failure; verify partial Qdrant points are rolled back on errors and timeout.
 - Validate the 1 GB file-size boundary, the 120-second configurable deadline,
@@ -315,9 +318,9 @@ which generation model the user chooses.
   paired retrieval prefixes, compare them with raw inputs on the separate
   calibration set, and freeze the convention and threshold before running the
   held-out quality acceptance set.
-- Set `RAG_MAX_INDEXED_CHUNKS` from measured Qdrant growth on the target host;
-  verify rejection before embedding/indexing, duplicate behavior, and capacity
-  recovery after document deletion.
+- Measure Qdrant growth and validate or revise the provisional
+  `RAG_MAX_INDEXED_CHUNKS=25000` default; verify rejection before
+  embedding/indexing, duplicate behavior, and capacity recovery after deletion.
 - Document and validate index recovery by creating a fresh Qdrant collection
   and re-uploading synthetic source PDFs after index loss.
 - On the primary CPU-only host, test the default `llama3.1:8b` model, fixed

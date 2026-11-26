@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import pytest
@@ -9,7 +10,8 @@ from app.clients.ollama import (
     RuntimeUnavailable,
 )
 from app.main import create_app
-from app.models.schemas import ChatMessage, ChatResponse, ModelSummary
+from app.models.schemas import ChatMessage, ChatResponse, ModelSummary, RAGSource
+from app.rag.service import RagPrompt
 from app.settings import Settings
 from fastapi import FastAPI
 from tests.helpers import send_request
@@ -67,9 +69,51 @@ class FakeRuntime:
         yield "as code."
 
 
-def make_app(runtime: FakeRuntime) -> FastAPI:
+class FakeRagService:
+    def __init__(self, *, calibrated: bool = True, can_answer: bool = True) -> None:
+        self.settings = Settings(
+            default_model="llama3.1:8b",
+            rag_score_threshold=0.5 if calibrated else None,
+        )
+        self.ready = True
+        self.can_answer = can_answer
+        self.sources = [
+            RAGSource(
+                document_id="doc-a",
+                filename="guide.pdf",
+                page_number=4,
+                score=0.9,
+            )
+        ]
+
+    async def readiness_loop(self) -> None:
+        await asyncio.Event().wait()
+
+    def health(self) -> dict[str, object]:
+        return {"status": "ready", "dependencies": {}}
+
+    async def prepare_prompt(self, messages: list[ChatMessage]) -> RagPrompt:
+        return RagPrompt(
+            messages=[
+                ChatMessage(role="system", content="Use retrieved document evidence."),
+                *messages,
+            ],
+            sources=self.sources if self.can_answer else [],
+            no_support=not self.can_answer,
+        )
+
+    @staticmethod
+    def add_citations(answer: str, sources: list[RAGSource]) -> str:
+        if not sources:
+            return answer
+        return f"{answer}\n\nSources:\n- guide.pdf, page 4"
+
+
+def make_app(
+    runtime: FakeRuntime, rag_service: FakeRagService | None = None
+) -> FastAPI:
     settings = Settings(default_model="llama3.1:8b")
-    return create_app(settings=settings, runtime=runtime)
+    return create_app(settings=settings, runtime=runtime, rag_service=rag_service)
 
 
 def test_root_page_displays_current_api_version() -> None:
@@ -139,6 +183,77 @@ def test_openai_model_list_returns_runtime_models() -> None:
     assert payload["object"] == "list"
     assert payload["data"][0]["id"] == "llama3.1:8b"
     assert payload["data"][0]["object"] == "model"
+
+
+def test_openai_model_list_adds_rag_aliases_when_ready_and_calibrated() -> None:
+    runtime = FakeRuntime()
+    runtime.models.append(ModelSummary(name="nomic-embed-text:v1.5"))
+
+    response = send_request(
+        make_app(runtime, FakeRagService()),
+        "GET",
+        "/v1/models",
+    )
+
+    assert response.status_code == 200
+    assert [model["id"] for model in response.json()["data"]] == [
+        "llama3.1:8b",
+        "llama3.1:8b-rag",
+    ]
+
+
+def test_openai_model_list_hides_rag_aliases_until_threshold_is_calibrated() -> None:
+    response = send_request(
+        make_app(FakeRuntime(), FakeRagService(calibrated=False)),
+        "GET",
+        "/v1/models",
+    )
+
+    assert response.status_code == 200
+    assert [model["id"] for model in response.json()["data"]] == ["llama3.1:8b"]
+
+
+def test_rag_model_alias_retrieves_context_and_cites_document_page() -> None:
+    runtime = FakeRuntime()
+    response = send_request(
+        make_app(runtime, FakeRagService()),
+        "POST",
+        "/v1/chat/completions",
+        json_body={
+            "model": "llama3.1:8b-rag",
+            "messages": [{"role": "user", "content": "Who checks the gate?"}],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["model"] == "llama3.1:8b-rag"
+    assert (
+        "Sources:\n- guide.pdf, page 4"
+        in response.json()["choices"][0]["message"]["content"]
+    )
+    assert runtime.chat_call is not None
+    assert runtime.chat_call["model"] == "llama3.1:8b"
+    assert runtime.chat_call["messages"][0].role == "system"
+
+
+def test_rag_alias_returns_no_support_without_calling_generation_model() -> None:
+    runtime = FakeRuntime()
+    response = send_request(
+        make_app(runtime, FakeRagService(can_answer=False)),
+        "POST",
+        "/v1/chat/completions",
+        json_body={
+            "model": "llama3.1:8b-rag",
+            "messages": [{"role": "user", "content": "What is the access code?"}],
+        },
+    )
+
+    assert response.status_code == 200
+    assert (
+        "do not provide enough information"
+        in response.json()["choices"][0]["message"]["content"]
+    )
+    assert runtime.chat_call is None
 
 
 def test_openai_chat_completion_returns_compatible_response() -> None:

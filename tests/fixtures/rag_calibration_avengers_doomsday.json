@@ -1,0 +1,175 @@
+{
+  "dataset_version": 1,
+  "purpose": "Manual, single-document RAG threshold calibration. Keep separate from the held-out post-development quality evaluation dataset.",
+  "source_document": "wikipedia-Avengers__Doomsday.pdf",
+  "source_document_included": false,
+  "reported_calibration": {
+    "rag_score_threshold": 0.5,
+    "result": "passed",
+    "correct_responses": 20,
+    "total_questions": 20,
+    "notes": "The user reported that all 20 questions were answered correctly. Per-question retrieval scores and citation grades were not recorded."
+  },
+  "questions": [
+    {
+      "id": "A01",
+      "answerable": true,
+      "question": "When is Avengers: Doomsday scheduled for release in the United States?",
+      "expected_answer": "December 18, 2026, as part of Phase Six of the MCU.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [1, 2]
+    },
+    {
+      "id": "A02",
+      "answerable": true,
+      "question": "Where and when will the film premiere?",
+      "expected_answer": "At the Intuit Dome in Los Angeles on December 14, 2026.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [1]
+    },
+    {
+      "id": "A03",
+      "answerable": true,
+      "question": "When is Avengers: Secret Wars scheduled for release?",
+      "expected_answer": "December 17, 2027.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [2]
+    },
+    {
+      "id": "A04",
+      "answerable": true,
+      "question": "Who directed Doomsday, and who received final screenwriting credit?",
+      "expected_answer": "Anthony and Joe Russo directed it; Stephen McFeely and Michael Waldron received final screenwriting credit.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [1, 6]
+    },
+    {
+      "id": "A05",
+      "answerable": true,
+      "question": "Who plays Doctor Doom, and what is the character's name?",
+      "expected_answer": "Robert Downey Jr. plays Victor von Doom, also known as Doctor Doom.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [1, 2]
+    },
+    {
+      "id": "A06",
+      "answerable": true,
+      "question": "Which universe does Doctor Doom come from, and what country does he rule?",
+      "expected_answer": "He comes from Earth-828 and rules Latveria.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [2]
+    },
+    {
+      "id": "A07",
+      "answerable": true,
+      "question": "Which hero groups come from Earth-616, Earth-828, and Earth-10005?",
+      "expected_answer": "Earth-616: Avengers, Wakandans, and New Avengers. Earth-828: Fantastic Four. Earth-10005: X-Men.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [2]
+    },
+    {
+      "id": "A08",
+      "answerable": true,
+      "question": "Who plays Reed Richards, and what ability does the character have?",
+      "expected_answer": "Pedro Pascal plays Reed Richards / Mister Fantastic. Reed can stretch parts of his body to great lengths.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [3]
+    },
+    {
+      "id": "A09",
+      "answerable": true,
+      "question": "What working title was used during filming?",
+      "expected_answer": "Apple Pie 1.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [7]
+    },
+    {
+      "id": "A10",
+      "answerable": true,
+      "question": "When did filming wrap?",
+      "expected_answer": "September 19, 2025.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [7]
+    },
+    {
+      "id": "U01",
+      "answerable": false,
+      "question": "What is the film's runtime?",
+      "expected_answer": "The article does not state the film's runtime.",
+      "expected_source": null,
+      "expected_pages": null
+    },
+    {
+      "id": "U02",
+      "answerable": false,
+      "question": "What age rating did the film receive?",
+      "expected_answer": "The article does not state the film's age rating.",
+      "expected_source": null,
+      "expected_pages": null
+    },
+    {
+      "id": "U03",
+      "answerable": false,
+      "question": "Who composed the film's score?",
+      "expected_answer": "The article does not identify the film's composer.",
+      "expected_source": null,
+      "expected_pages": null
+    },
+    {
+      "id": "U04",
+      "answerable": false,
+      "question": "What was the film's production budget?",
+      "expected_answer": "The article does not provide the film's production budget.",
+      "expected_source": null,
+      "expected_pages": null
+    },
+    {
+      "id": "U05",
+      "answerable": false,
+      "question": "Who defeats Doctor Doom in the film's final battle?",
+      "expected_answer": "The article does not describe the ending or say who defeats Doctor Doom.",
+      "expected_source": null,
+      "expected_pages": null
+    },
+    {
+      "id": "U06",
+      "answerable": false,
+      "question": "What is the film's UK theatrical release date?",
+      "expected_answer": "The article gives a U.S. release date but does not state a UK release date.",
+      "expected_source": null,
+      "expected_pages": null
+    },
+    {
+      "id": "U07",
+      "answerable": false,
+      "question": "Which character does Sandra Huller play?",
+      "expected_answer": "The article says her cameo role is undisclosed.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [5]
+    },
+    {
+      "id": "U08",
+      "answerable": false,
+      "question": "How many post-credit scenes does Doomsday have?",
+      "expected_answer": "The article does not state how many post-credit scenes Doomsday has.",
+      "expected_source": null,
+      "expected_pages": null
+    },
+    {
+      "id": "U09",
+      "answerable": false,
+      "question": "How many days of additional photography took place?",
+      "expected_answer": "The article says additional photography took place in early-to-mid 2026 but gives no number of days.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [8]
+    },
+    {
+      "id": "U10",
+      "answerable": false,
+      "question": "How many scenes were filmed in Bahrain?",
+      "expected_answer": "The article mentions location filming in Bahrain but does not give a scene count.",
+      "expected_source": "wikipedia-Avengers__Doomsday.pdf",
+      "expected_pages": [7]
+    }
+  ]
+}

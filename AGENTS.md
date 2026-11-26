@@ -26,8 +26,10 @@
 
 ## Validation
 
+- Never run Terraform commands, including `fmt`, `validate`, `plan`, or `apply`.
+- Do not use Terraform or Docker commands to test or validate project changes.
 - Run the narrowest relevant tests and checks first, then broader checks when practical.
-- For Terraform changes, run `terraform fmt -check`, `terraform validate`, and review `terraform plan` when the required provider and Docker daemon are available.
+- For Terraform changes, report that Terraform validation was not run due to the command restriction above.
 - For Python changes, run the relevant `pytest` tests and Ruff checks when configured.
 - If a check cannot run because prerequisites are unavailable, report that clearly rather than implying it passed.
 

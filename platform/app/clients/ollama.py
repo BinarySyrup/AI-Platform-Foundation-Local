@@ -91,6 +91,33 @@ class OllamaClient:
             message=ChatMessage(role="assistant", content=message["content"]),
         )
 
+    async def embed(
+        self,
+        *,
+        model: str,
+        inputs: list[str],
+    ) -> list[list[float]]:
+        payload = await self._request(
+            "POST",
+            "/api/embed",
+            json_body={"model": model, "input": inputs},
+        )
+        embeddings = payload.get("embeddings")
+        if (
+            not isinstance(embeddings, list)
+            or len(embeddings) != len(inputs)
+            or any(
+                not isinstance(vector, list)
+                or any(
+                    not isinstance(value, (int, float)) or isinstance(value, bool)
+                    for value in vector
+                )
+                for vector in embeddings
+            )
+        ):
+            raise RuntimeProtocolError("Ollama returned invalid embeddings.")
+        return [[float(value) for value in vector] for vector in embeddings]
+
     async def chat_stream(
         self,
         *,

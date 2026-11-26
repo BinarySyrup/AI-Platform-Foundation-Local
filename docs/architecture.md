@@ -6,8 +6,9 @@ boundary and orchestrates model generation, PDF conversion, embeddings, and
 retrieval. Open WebUI and other clients never call Ollama, Docling Serve, or
 Qdrant directly.
 
-This document describes the target RAG architecture. The implementation and
-deployment work is tracked separately.
+The FastAPI and Terraform RAG implementation is present. Target-host resource
+validation, retrieval-threshold calibration, the numeric chunk cap, and the
+held-out quality acceptance run remain release gates.
 
 ## System Diagram
 
@@ -50,18 +51,18 @@ The Docling Serve and Qdrant ports are not published to the host.
 | FastAPI platform API | Validates client requests and coordinates direct chat, document ingestion, retrieval, and RAG chat. |
 | Ollama client adapter | Isolates Ollama HTTP requests and responses, including chat generation and embeddings. |
 | Ollama | Runs the selected generation model and the fixed `nomic-embed-text:v1.5` embedding model. |
-| `ghcr.io/docling-project/docling-serve-cpu:v1.38.2` | Converts uploaded PDFs to structured text and source metadata through its API. |
-| `qdrant/qdrant:v1.20.2` | Stores and searches 768-dimensional vectors with Cosine distance, plus chunk text and source metadata. |
+| `ghcr.io/docling-project/docling-serve-cpu:v1.38.2@sha256:7b31b3c2efa17534dfcffb61665b71bbc959ad309b5b7ed82c3bbdcc63cc3d58` | Converts uploaded PDFs to structured text and source metadata through its API. |
+| `qdrant/qdrant:v1.20.2@sha256:c5e32ee251293d2e1f4dd34890ad75eeee5a4f3821a121d6d8b7e4323448b386` | Stores and searches 768-dimensional vectors with Cosine distance, plus chunk text and source metadata. |
 
-The official Docling Serve CPU container
-`ghcr.io/docling-project/docling-serve-cpu:v1.38.2` is separate from the
-platform API image. Record its immutable image digest before implementation.
-Qdrant is selected at `v1.20.2`; record its immutable digest before deployment.
+The API uses the separate Docling Serve container; Terraform pins both Docling
+Serve and Qdrant to the selected linux/amd64 manifest digests.
 
 ## Chat Model Choices
 
-For each supported Ollama chat model, FastAPI exposes a direct entry and a RAG
-entry through the OpenAI-compatible model list. For example,
+For each supported Ollama chat model, FastAPI exposes a direct entry and adds a
+RAG entry to the OpenAI-compatible model list after RAG is ready. The
+application uses a provisional 0.50 score threshold until calibration selects
+a final value. For example,
 `llama3.1:8b` routes directly to Ollama, while `llama3.1:8b-rag` is a FastAPI
 alias that performs retrieval before calling the same `llama3.1:8b` model. The
 RAG alias is not a separate Ollama model file. FastAPI resolves aliases
@@ -119,15 +120,16 @@ the deadline; validate a practical page limit and resource use on the target
 host.
 
 The initial retrieval profile chunks Docling's extracted paragraphs and
-headings within PDF page boundaries, targeting 600 tokens per chunk with 100
-tokens of overlap. It uses vector-only search and adds the top 5 chunks to the
-prompt. Hybrid search and reranking are deferred. Use Nomic's
-`search_document:` prefix for chunks and `search_query:` for queries. During
-development, compare the paired prefixes with raw inputs on a separate small
-synthetic calibration set and set the relevance threshold from its answerable
-and unanswerable score results. Do not use an arbitrary numeric threshold or
-the held-out quality set for tuning. Changing chunk size, overlap, or prefix
-convention requires rebuilding the Qdrant index.
+headings within PDF page boundaries, targeting 600 lexical token-like units
+with 100 units of overlap. The lexical counter approximates model tokens and
+must be assessed during quality evaluation. It uses vector-only search and
+adds the top 5 chunks to the prompt. Hybrid search and reranking are deferred.
+Use Nomic's paired task prefixes: `search_document:` for chunks and
+`search_query:` for queries. During development, compare the paired prefixes
+with raw inputs on a separate small synthetic calibration set and tune the
+provisional threshold from its answerable and unanswerable score results. Do
+not use the held-out quality set for tuning. Changing chunk size, overlap, or
+prefix convention requires rebuilding the Qdrant index.
 
 After development, validate end-to-end RAG quality with 30 questions across
 6 to 10 synthetic PDFs: 20 answerable and 10 unanswerable. Require at least 18
@@ -138,8 +140,9 @@ The collection also has a configurable `RAG_MAX_INDEXED_CHUNKS` cap. After
 chunking a new PDF and before embedding or indexing, the API checks whether
 the existing ready chunks plus the new chunks fit. Over-limit uploads are
 rejected without adding points; deleting a document frees its chunk capacity.
-The numeric cap is set after measuring Qdrant growth on the target host. This
-logical limit does not enforce a physical disk quota.
+The initial cap is a provisional 25,000 chunks. Validate or revise it after
+measuring Qdrant growth on the target host. This logical limit does not enforce
+a physical disk quota.
 
 ## RAG Chat Flow
 

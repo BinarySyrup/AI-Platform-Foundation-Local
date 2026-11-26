@@ -1,7 +1,9 @@
+import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import cast
 from uuid import uuid4
 
 import httpx
@@ -11,7 +13,9 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.openai_routes import openai_router
+from app.api.rag_routes import rag_router
 from app.api.routes import router
+from app.clients.docling import DoclingClient
 from app.clients.ollama import (
     ModelNotFound,
     OllamaClient,
@@ -21,12 +25,15 @@ from app.clients.ollama import (
     RuntimeTimeout,
     RuntimeUnavailable,
 )
-from app.clients.protocol import RuntimeClient
+from app.clients.protocol import EmbeddingClient, RuntimeClient
+from app.clients.qdrant import QdrantClient
 from app.models.schemas import (
     ErrorDetail,
     ErrorResponse,
     ValidationIssue,
 )
+from app.rag.errors import RagError
+from app.rag.service import RagService
 from app.settings import Settings
 
 logger = logging.getLogger("ai_platform")
@@ -68,25 +75,63 @@ def _error_response(
 def create_app(
     settings: Settings | None = None,
     runtime: RuntimeClient | None = None,
+    rag_service: RagService | None = None,
 ) -> FastAPI:
     app_settings = settings or Settings()
     logger.setLevel(app_settings.log_level)
 
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-        if runtime is not None:
-            application.state.runtime = runtime
-            yield
-            return
-
-        async with httpx.AsyncClient(
-            base_url=str(app_settings.ollama_base_url).rstrip("/"),
-            timeout=httpx.Timeout(app_settings.request_timeout_seconds),
-            follow_redirects=False,
-            trust_env=False,
-        ) as http_client:
-            application.state.runtime = OllamaClient(http_client)
-            yield
+        async with (
+            httpx.AsyncClient(
+                base_url=str(app_settings.ollama_base_url).rstrip("/"),
+                timeout=httpx.Timeout(app_settings.request_timeout_seconds),
+                follow_redirects=False,
+                trust_env=False,
+            ) as runtime_http_client,
+            httpx.AsyncClient(
+                base_url=str(app_settings.docling_base_url).rstrip("/"),
+                timeout=httpx.Timeout(
+                    app_settings.rag_ingestion_timeout_seconds,
+                    connect=5.0,
+                ),
+                follow_redirects=False,
+                trust_env=False,
+            ) as docling_http_client,
+            httpx.AsyncClient(
+                base_url=str(app_settings.qdrant_base_url).rstrip("/"),
+                timeout=httpx.Timeout(
+                    app_settings.request_timeout_seconds,
+                    connect=5.0,
+                ),
+                follow_redirects=False,
+                trust_env=False,
+            ) as qdrant_http_client,
+        ):
+            actual_runtime = runtime or OllamaClient(runtime_http_client)
+            actual_rag = rag_service or RagService(
+                settings=app_settings,
+                embeddings=cast(EmbeddingClient, actual_runtime),
+                docling=DoclingClient(docling_http_client),
+                qdrant=QdrantClient(
+                    qdrant_http_client,
+                    app_settings.rag_collection_name,
+                ),
+            )
+            application.state.runtime = actual_runtime
+            application.state.rag = actual_rag
+            readiness_task = None
+            if runtime is None or rag_service is not None:
+                readiness_task = asyncio.create_task(actual_rag.readiness_loop())
+            try:
+                yield
+            finally:
+                if readiness_task is not None:
+                    readiness_task.cancel()
+                    try:
+                        await readiness_task
+                    except asyncio.CancelledError:
+                        pass
 
     application = FastAPI(
         title="Local AI Platform API",
@@ -94,7 +139,7 @@ def create_app(
             "A local platform API with versioned endpoints and an OpenAI-compatible "
             "interface for model discovery and streaming or non-streaming chat."
         ),
-        version="1.2.0",
+        version="1.3.0",
         docs_url="/docs",
         redoc_url="/redoc",
         openapi_url="/openapi.json",
@@ -107,12 +152,17 @@ def create_app(
                 "name": "OpenAI-compatible API",
                 "description": "Model listing and chat completions for API clients.",
             },
+            {
+                "name": "RAG",
+                "description": "Local PDF ingestion, retrieval, and grounded chat.",
+            },
         ],
         lifespan=lifespan,
     )
     application.state.settings = app_settings
     application.include_router(router)
     application.include_router(openai_router)
+    application.include_router(rag_router)
 
     @application.middleware("http")
     async def add_request_id_and_log(request: Request, call_next):
@@ -194,6 +244,18 @@ def create_app(
             status_code=status_code,
             code=code,
             message=message,
+        )
+
+    @application.exception_handler(RagError)
+    async def rag_error_handler(
+        request: Request,
+        exception: RagError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=exception.status_code,
+            code=exception.code,
+            message=exception.message,
         )
 
     @application.exception_handler(StarletteHTTPException)

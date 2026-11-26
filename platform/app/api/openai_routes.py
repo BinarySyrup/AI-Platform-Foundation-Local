@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import StreamingResponse
 
-from app.api.dependencies import get_runtime
+from app.api.dependencies import get_rag, get_runtime
 from app.clients.ollama import (
     ModelNotFound,
     OllamaError,
@@ -22,6 +22,9 @@ from app.models.openai import (
     OpenAIModel,
     OpenAIModelList,
 )
+from app.models.schemas import ChatMessage, RAGSource
+from app.rag.models import EMBEDDING_MODEL, chat_models, rag_aliases
+from app.rag.service import NO_SUPPORT_ANSWER, RagService
 
 openai_router = APIRouter(prefix="/v1", tags=["OpenAI-compatible API"])
 
@@ -33,11 +36,18 @@ openai_router = APIRouter(prefix="/v1", tags=["OpenAI-compatible API"])
 )
 async def list_openai_models(
     runtime: RuntimeClient = Depends(get_runtime),
+    rag: RagService = Depends(get_rag),
 ) -> OpenAIModelList:
     created = int(time.time())
-    models = await runtime.list_models()
+    models = chat_models(await runtime.list_models())
+    names = [model.name for model in models]
+    aliases = (
+        rag_aliases(names)
+        if rag.ready and rag.settings.rag_score_threshold is not None
+        else {}
+    )
     return OpenAIModelList(
-        data=[OpenAIModel(id=model.name, created=created) for model in models]
+        data=[OpenAIModel(id=name, created=created) for name in [*names, *aliases]]
     )
 
 
@@ -54,28 +64,71 @@ async def list_openai_models(
 async def create_chat_completion(
     body: OpenAIChatRequest,
     runtime: RuntimeClient = Depends(get_runtime),
+    rag: RagService = Depends(get_rag),
 ) -> OpenAIChatResponse | StreamingResponse:
     completion_id = f"chatcmpl-{uuid4().hex}"
     created = int(time.time())
+    selected_model = body.model
+    rag_model: str | None = None
+    if body.model == EMBEDDING_MODEL:
+        raise ModelNotFound
+    if body.model.endswith("-rag"):
+        available = chat_models(await runtime.list_models())
+        names = [model.name for model in available]
+        if body.model not in names:
+            rag_model = rag_aliases(names).get(body.model)
 
     if not body.stream:
-        response = await runtime.chat(
-            model=body.model,
-            messages=body.messages,
-            temperature=body.temperature,
-        )
+        if rag_model is not None:
+            prompt = await rag.prepare_prompt(body.messages)
+            if prompt.no_support:
+                answer = NO_SUPPORT_ANSWER
+            else:
+                response = await runtime.chat(
+                    model=rag_model,
+                    messages=prompt.messages,
+                    temperature=body.temperature,
+                )
+                answer = response.message.content
+            content = rag.add_citations(answer, prompt.sources)
+            response_model = selected_model
+        else:
+            response = await runtime.chat(
+                model=selected_model,
+                messages=body.messages,
+                temperature=body.temperature,
+            )
+            content = response.message.content
+            response_model = response.model
         return OpenAIChatResponse(
             id=completion_id,
             created=created,
-            model=response.model,
-            choices=[OpenAIChatChoice(message=response.message)],
+            model=response_model,
+            choices=[
+                OpenAIChatChoice(message=ChatMessage(role="assistant", content=content))
+            ],
         )
 
-    content_stream = runtime.chat_stream(
-        model=body.model,
-        messages=body.messages,
-        temperature=body.temperature,
-    )
+    if rag_model is not None:
+        prompt = await rag.prepare_prompt(body.messages)
+        if prompt.no_support:
+            content_stream = _single_content(NO_SUPPORT_ANSWER)
+        else:
+            content_stream = _append_citations(
+                runtime.chat_stream(
+                    model=rag_model,
+                    messages=prompt.messages,
+                    temperature=body.temperature,
+                ),
+                rag,
+                prompt.sources,
+            )
+    else:
+        content_stream = runtime.chat_stream(
+            model=selected_model,
+            messages=body.messages,
+            temperature=body.temperature,
+        )
     try:
         first_content = await anext(content_stream)
     except StopAsyncIteration:
@@ -88,7 +141,7 @@ async def create_chat_completion(
                 _chunk(
                     completion_id,
                     created,
-                    body.model,
+                    selected_model,
                     delta={"role": "assistant"},
                 )
             )
@@ -96,7 +149,7 @@ async def create_chat_completion(
                 _chunk(
                     completion_id,
                     created,
-                    body.model,
+                    selected_model,
                     delta={"content": first_content},
                 )
             )
@@ -105,7 +158,7 @@ async def create_chat_completion(
                     _chunk(
                         completion_id,
                         created,
-                        body.model,
+                        selected_model,
                         delta={"content": content},
                     )
                 )
@@ -113,7 +166,7 @@ async def create_chat_completion(
                 _chunk(
                     completion_id,
                     created,
-                    body.model,
+                    selected_model,
                     delta={},
                     finish_reason="stop",
                 )
@@ -132,6 +185,22 @@ async def create_chat_completion(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+async def _single_content(content: str) -> AsyncIterator[str]:
+    yield content
+
+
+async def _append_citations(
+    content_stream: AsyncIterator[str],
+    rag: RagService,
+    sources: list[RAGSource],
+) -> AsyncIterator[str]:
+    async for content in content_stream:
+        yield content
+    citation_text = rag.add_citations("", sources)
+    if citation_text:
+        yield citation_text
 
 
 def _chunk(

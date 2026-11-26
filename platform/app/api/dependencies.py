@@ -3,6 +3,7 @@ from typing import cast
 from fastapi import Request
 
 from app.clients.protocol import RuntimeClient
+from app.rag.service import RagService
 from app.settings import Settings
 
 
@@ -12,3 +13,7 @@ def get_runtime(request: Request) -> RuntimeClient:
 
 def get_settings(request: Request) -> Settings:
     return cast(Settings, request.app.state.settings)
+
+
+def get_rag(request: Request) -> RagService:
+    return cast(RagService, request.app.state.rag)

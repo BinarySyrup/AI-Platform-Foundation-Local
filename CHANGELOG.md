@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Implement PDF ingestion, local Docling conversion, Nomic embeddings, Qdrant
+  indexing and search, document listing/deletion, and native RAG chat.
+- Add OpenAI-compatible direct and RAG model entries, with retrieval aliases
+  mapped to the selected installed Ollama generation model.
+- Provision private Docker networking, Docling Serve and Qdrant containers, and
+  persistent Qdrant storage through Terraform.
+- Add separate RAG readiness, startup cleanup for abandoned uploads and pending
+  index points, exact-byte upload deduplication, and bounded synchronous upload.
+
 ### Documentation
 
 - Add the local PDF RAG target architecture, Docling Serve and Qdrant roles,
@@ -49,7 +60,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   exhaustion.
 - Document Swagger UI and `curl.exe` workflows for uploading, listing, and
   deleting RAG documents.
-- Record that RAG implementation and Terraform resources are still pending.
+- Document that RAG chat requires a calibration-derived score threshold and
+  ingestion requires a benchmark-derived indexed-chunk limit. Numeric values
+  remain unset until calibration and target-host measurements are complete.
 
 ## [1.2.0] - 2026-11-17
 

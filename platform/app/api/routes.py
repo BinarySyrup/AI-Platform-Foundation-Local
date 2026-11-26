@@ -13,6 +13,7 @@ from app.models.schemas import (
     HealthResponse,
     ModelListResponse,
 )
+from app.rag.models import chat_models
 from app.settings import Settings
 
 router = APIRouter()
@@ -55,7 +56,7 @@ async def health() -> HealthResponse:
 async def list_models(
     runtime: Annotated[RuntimeClient, Depends(get_runtime)],
 ) -> ModelListResponse:
-    return ModelListResponse(models=await runtime.list_models())
+    return ModelListResponse(models=chat_models(await runtime.list_models()))
 
 
 @router.post(

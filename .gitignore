@@ -94,3 +94,4 @@ Thumbs.db
 Desktop.ini
 .idea/
 /infra/terraform/terraform.tfvars
+rag-quality-results*.json
